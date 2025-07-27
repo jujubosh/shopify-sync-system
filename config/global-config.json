@@ -1,0 +1,26 @@
+{
+  "lglStore": {
+    "domain": "12ffec-3.myshopify.com",
+    "apiToken": "SHOPIFY_LGL_TOKEN"
+  },
+  "defaults": {
+    "maxRetries": 3,
+    "lookbackHours": 4,
+    "fulfillmentLookbackHours": 24
+  },
+  "inventory": {
+    "batchSize": 10,
+    "delayBetweenBatches": 2000,
+    "maxRetries": 3
+  },
+  "logging": {
+    "level": "info",
+    "retentionDays": 30
+  },
+  "emailNotifications": {
+    "enabled": true,
+    "toEmail": "justin@livegoodlogistics.com",
+    "sendErrors": true,
+    "sendSummaries": true
+  }
+} 
