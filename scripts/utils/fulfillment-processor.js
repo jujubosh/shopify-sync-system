@@ -49,6 +49,10 @@ class FulfillmentProcessor {
               name
               tags
               note
+              noteAttributes {
+                name
+                value
+              }
               fulfillments(first: 5) {
                 trackingInfo {
                   company
@@ -88,14 +92,14 @@ class FulfillmentProcessor {
         // Only process if not already pushed
         if (order.tags.includes('fulfillment-pushed')) continue;
         
-        // Must have a numeric tag (order number) and an 'imported-from-...' tag
-        const orderNumberTag = order.tags.find(tag => /^\d+$/.test(tag));
+        // Must have an 'imported-from-...' tag and a numeric order number tag
         const importedFromTag = order.tags.find(tag => tag.startsWith('imported-from-'));
+        const orderNumberTag = order.tags.find(tag => /^\d+$/.test(tag));
         
-        if (!orderNumberTag || !importedFromTag) continue;
+        if (!importedFromTag || !orderNumberTag) continue;
         
-        // Extract source info
-        const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(order.tags, []);
+        // Extract source info using tags
+        const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(order.tags);
         if (!sourceOrderNumber || !sourceStoreName) continue;
         
         orders.push({ ...order, sourceOrderNumber, sourceStoreName });
@@ -108,20 +112,13 @@ class FulfillmentProcessor {
     return orders;
   }
 
-  extractSourceInfoFromTags(tags, noteAttributes) {
-    // Find a tag that is a number (order number)
-    const orderNumberTag = tags.find(tag => /^\d+$/.test(tag));
+  extractSourceInfoFromTags(tags) {
     // Find a tag that starts with 'imported-from-' (lowercase with hyphens)
     const importedFromTag = tags.find(tag => tag.startsWith('imported-from-'));
-    
-    let sourceOrderNumber = orderNumberTag;
     let sourceStoreName = importedFromTag ? importedFromTag.replace('imported-from-', '') : null;
 
-    // Fallback to note_attributes if tags are missing
-    if ((!sourceOrderNumber || !sourceStoreName) && Array.isArray(noteAttributes)) {
-      const orderNumberAttr = noteAttributes.find(attr => attr.name === 'order_number');
-      if (orderNumberAttr) sourceOrderNumber = orderNumberAttr.value;
-    }
+    // Find the original order number tag (numeric tag)
+    const sourceOrderNumber = tags.find(tag => /^\d+$/.test(tag));
     
     return { sourceOrderNumber, sourceStoreName };
   }
