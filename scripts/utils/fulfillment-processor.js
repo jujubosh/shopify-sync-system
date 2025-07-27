@@ -194,12 +194,14 @@ class FulfillmentProcessor {
     let trackingCompany = fulfillment.trackingInfo?.company || '';
     let trackingNumber = fulfillment.trackingInfo?.number || '';
     
-    // If multiple tracking numbers exist, use the first and log a warning
+    // Handle multiple tracking numbers from GraphQL
     if (Array.isArray(fulfillment.trackingInfo?.number)) {
       if (fulfillment.trackingInfo.number.length > 1) {
-        this.logger.logInfo(`Multiple tracking numbers found for order ${order.name}, using the first one.`);
+        trackingNumber = fulfillment.trackingInfo.number.join(', ');
+        this.logger.logInfo(`Multiple tracking numbers found for order ${order.name}: ${trackingNumber}`);
+      } else {
+        trackingNumber = fulfillment.trackingInfo.number[0] || '';
       }
-      trackingNumber = fulfillment.trackingInfo.number[0] || '';
     }
     
     // If tracking info is missing, fetch from REST API
@@ -209,10 +211,15 @@ class FulfillmentProcessor {
       if (restData.fulfillments && restData.fulfillments.length > 0) {
         const restFulfillment = restData.fulfillments[0];
         trackingCompany = restFulfillment.tracking_company || '';
-        trackingNumber = Array.isArray(restFulfillment.tracking_numbers) && restFulfillment.tracking_numbers.length > 0
-          ? restFulfillment.tracking_numbers[0]
-          : (restFulfillment.tracking_number || '');
-        this.logger.logInfo(`Tracking info from REST: ${trackingCompany} - ${trackingNumber}`);
+        
+        // Handle multiple tracking numbers from REST API
+        if (Array.isArray(restFulfillment.tracking_numbers) && restFulfillment.tracking_numbers.length > 0) {
+          trackingNumber = restFulfillment.tracking_numbers.join(', ');
+          this.logger.logInfo(`Multiple tracking numbers from REST: ${trackingCompany} - ${trackingNumber}`);
+        } else {
+          trackingNumber = restFulfillment.tracking_number || '';
+          this.logger.logInfo(`Single tracking number from REST: ${trackingCompany} - ${trackingNumber}`);
+        }
       }
     }
     
