@@ -4,7 +4,10 @@ const https = require('https');
 class ShopifyClient {
   constructor(domain, apiToken) {
     this.domain = domain;
-    this.apiToken = apiToken;
+    // Resolve API token from environment variable if it's a placeholder
+    this.apiToken = apiToken.startsWith('SHOPIFY_') && apiToken.endsWith('_TOKEN') 
+      ? process.env[apiToken] || apiToken
+      : apiToken;
     this.baseUrl = `https://${domain}/admin/api/2025-07`;
   }
 

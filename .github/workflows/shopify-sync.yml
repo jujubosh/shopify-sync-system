@@ -42,6 +42,8 @@ jobs:
       env:
         OPERATION: ${{ github.event.inputs.operation || 'all' }}
         RETAILER_ID: ${{ github.event.inputs.retailer || '' }}
+        SHOPIFY_LGL_TOKEN: ${{ secrets.SHOPIFY_LGL_TOKEN }}
+        SHOPIFY_TEST_TOKEN: ${{ secrets.SHOPIFY_TEST_TOKEN }}
       run: |
         if [ -n "$RETAILER_ID" ]; then
           RETAILER_ID=$RETAILER_ID node scripts/process-all.js $OPERATION
