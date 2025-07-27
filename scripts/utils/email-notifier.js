@@ -42,15 +42,13 @@ class EmailNotifier {
     return new Promise((resolve, reject) => {
       const req = https.request(options, (res) => {
         let responseData = '';
-        
         res.on('data', (chunk) => {
           responseData += chunk;
         });
-        
         res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
+          if (res.statusCode === 200) {
             console.log(`Email sent successfully: ${subject}`);
-            resolve(responseData);
+            resolve();
           } else {
             console.error(`Failed to send email: ${res.statusCode} - ${responseData}`);
             reject(new Error(`Email send failed: ${res.statusCode}`));
@@ -94,31 +92,53 @@ ${JSON.stringify(context, null, 2)}
 <html>
 <head>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { background-color: #dc3545; color: white; padding: 15px; border-radius: 5px; }
-        .content { margin: 20px 0; }
-        .error-details { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; }
-        .context { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin-top: 15px; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 700px; margin: 0 auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 25px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+        .header .subtitle { margin-top: 5px; opacity: 0.9; font-size: 14px; }
+        .content { padding: 30px; }
+        .error-details { background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .context { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-top: 20px; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .info-item { background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff; }
+        .info-label { font-size: 12px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+        .info-value { font-weight: 600; color: #495057; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; font-size: 12px; overflow-x: auto; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>🚨 Shopify Sync System Error</h2>
-    </div>
-    <div class="content">
-        <p><strong>Time:</strong> ${timestamp}</p>
-        <p><strong>Retailer:</strong> ${context.retailer || 'Unknown'}</p>
-        <p><strong>Operation:</strong> ${context.operation || 'Unknown'}</p>
-        
-        <div class="error-details">
-            <h3>Error Details:</h3>
-            <p>${error.message}</p>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Shopify Sync System Error</h1>
+            <div class="subtitle">Critical system error detected</div>
         </div>
         
-        <div class="context">
-            <h3>Additional Context:</h3>
-            <pre>${JSON.stringify(context, null, 2)}</pre>
+        <div class="content">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Time</div>
+                    <div class="info-value">${new Date(timestamp).toLocaleString()}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Retailer</div>
+                    <div class="info-value">${context.retailer || 'Unknown'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Operation</div>
+                    <div class="info-value">${context.operation || 'Unknown'}</div>
+                </div>
+            </div>
+            
+            <div class="error-details">
+                <h3 style="margin-top: 0; color: #721c24;">Error Details</h3>
+                <p style="margin: 0; font-weight: 500;">${error.message}</p>
+            </div>
+            
+            <div class="context">
+                <h3 style="margin-top: 0; color: #495057;">Additional Context</h3>
+                <pre>${JSON.stringify(context, null, 2)}</pre>
+            </div>
         </div>
     </div>
 </body>
@@ -132,6 +152,94 @@ ${JSON.stringify(context, null, 2)}
     }
   }
 
+  generateRetailerSections(results) {
+    if (!results) return '';
+    
+    let sections = '';
+    
+    // Group results by retailer
+    const retailerData = {};
+    
+    // Process fulfillments
+    if (results.fulfillments) {
+      results.fulfillments.success?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].success.push({ type: 'fulfillment', message: item.message });
+      });
+      results.fulfillments.errors?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].errors.push({ type: 'fulfillment', message: item.message });
+      });
+    }
+    
+    // Process orders
+    if (results.orders) {
+      results.orders.success?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].success.push({ type: 'order', message: item.message });
+      });
+      results.orders.errors?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].errors.push({ type: 'order', message: item.message });
+      });
+    }
+    
+    // Process inventory
+    if (results.inventory) {
+      results.inventory.success?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].success.push({ type: 'inventory', message: item.message });
+      });
+      results.inventory.errors?.forEach(item => {
+        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
+        retailerData[item.retailer].errors.push({ type: 'inventory', message: item.message });
+      });
+    }
+    
+    // Generate sections for each retailer
+    Object.keys(retailerData).forEach(retailer => {
+      const data = retailerData[retailer];
+      const totalSuccess = data.success.length;
+      const totalErrors = data.errors.length;
+      
+      if (totalSuccess === 0 && totalErrors === 0) return;
+      
+      sections += `
+        <div class="section">
+            <div class="section-header">
+                <span class="section-icon">🏪</span>
+                <h3 class="section-title">${retailer}</h3>
+                <span class="section-count">${totalSuccess + totalErrors}</span>
+            </div>
+            
+            ${totalSuccess > 0 ? `
+            <div class="retailer-group">
+                <div class="retailer-header">✅ Successful Operations (${totalSuccess})</div>
+                ${data.success.map(item => `
+                    <div class="success-item">
+                        <strong>${item.type.toUpperCase()}:</strong> ${item.message}
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+            
+            ${totalErrors > 0 ? `
+            <div class="retailer-group">
+                <div class="retailer-header">❌ Errors (${totalErrors})</div>
+                ${data.errors.map(item => `
+                    <div class="error-item">
+                        <strong>${item.type.toUpperCase()}:</strong> ${item.message}
+                    </div>
+                `).join('')}
+            </div>
+            ` : ''}
+        </div>
+      `;
+    });
+    
+    return sections;
+  }
+
   async sendSummaryNotification(summary) {
     const subject = `Shopify Sync Summary - ${new Date().toLocaleDateString()}`;
     const timestamp = new Date().toISOString();
@@ -140,6 +248,9 @@ ${JSON.stringify(context, null, 2)}
 Shopify Sync System Summary
 
 Time: ${timestamp}
+Status: ${summary.status.toUpperCase()}
+Duration: ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds
+Retailers: ${summary.retailers?.join(', ') || 'None'}
 
 Summary:
 ${JSON.stringify(summary, null, 2)}
@@ -150,114 +261,89 @@ ${JSON.stringify(summary, null, 2)}
 <html>
 <head>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { background-color: #28a745; color: white; padding: 15px; border-radius: 5px; }
-        .content { margin: 20px 0; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
-        .stat-card { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; text-align: center; }
-        .stat-number { font-size: 2em; font-weight: bold; color: #007bff; }
-        .stat-label { color: #6c757d; margin-top: 5px; }
-        .section { margin: 20px 0; }
-        .section h3 { color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 5px; }
-        .error-item { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin: 5px 0; border-radius: 3px; }
-        .success-item { background-color: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 5px 0; border-radius: 3px; }
-        .details { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin-top: 15px; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 900px; margin: 0 auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+        .header .subtitle { margin-top: 5px; opacity: 0.9; font-size: 14px; }
+        .content { padding: 30px; }
+        .overview { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+        .overview-item { text-align: center; }
+        .overview-number { font-size: 24px; font-weight: bold; color: #007bff; }
+        .overview-label { font-size: 12px; color: #6c757d; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 25px 0; }
+        .stat-card { background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .stat-number { font-size: 2.5em; font-weight: bold; color: #007bff; margin-bottom: 5px; }
+        .stat-label { color: #6c757d; font-size: 14px; font-weight: 500; }
+        .section { margin: 25px 0; }
+        .section-header { display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef; }
+        .section-icon { font-size: 20px; margin-right: 10px; }
+        .section-title { color: #495057; font-size: 18px; font-weight: 600; margin: 0; }
+        .section-count { background-color: #007bff; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
+        .retailer-group { margin: 15px 0; }
+        .retailer-header { background-color: #e9ecef; padding: 10px 15px; border-radius: 5px; margin-bottom: 10px; font-weight: 600; color: #495057; }
+        .item { padding: 12px 15px; margin: 8px 0; border-radius: 6px; border-left: 4px solid; }
+        .success-item { background-color: #d4edda; border-color: #28a745; color: #155724; }
+        .error-item { background-color: #f8d7da; border-color: #dc3545; color: #721c24; }
+        .warning-item { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
+        .details { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-top: 25px; }
+        .details h3 { color: #495057; margin-top: 0; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; font-size: 12px; overflow-x: auto; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .retailers-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .retailer-tag { background-color: #007bff; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>📊 Shopify Sync System Summary</h2>
-    </div>
-    <div class="content">
-        <p><strong>Time:</strong> ${timestamp}</p>
-        <p><strong>Status:</strong> <span style="color: ${summary.status === 'success' ? '#28a745' : '#dc3545'}; font-weight: bold;">${summary.status.toUpperCase()}</span></p>
-        <p><strong>Duration:</strong> ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds</p>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Shopify Sync System Summary</h1>
+            <div class="subtitle">Automated synchronization report</div>
+        </div>
         
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-number">${summary.results?.fulfillments?.total || 0}</div>
-                <div class="stat-label">Fulfillments Processed</div>
+        <div class="content">
+            <div class="overview">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
+                    </div>
+                    <span class="status-badge status-${summary.status === 'success' ? 'success' : 'error'}">
+                        ${summary.status.toUpperCase()}
+                    </span>
+                </div>
+                <div style="color: #6c757d; font-size: 14px;">
+                    <strong>Duration:</strong> ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds
+                </div>
+                <div class="retailers-list">
+                    <strong>Retailers:</strong>
+                    ${summary.retailers?.map(r => `<span class="retailer-tag">${r}</span>`).join('') || 'None'}
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number">${summary.results?.orders?.total || 0}</div>
-                <div class="stat-label">Orders Imported</div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">${summary.results?.fulfillments?.total || 0}</div>
+                    <div class="stat-label">Fulfillments Processed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${summary.results?.orders?.total || 0}</div>
+                    <div class="stat-label">Orders Imported</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${summary.results?.inventory?.total || 0}</div>
+                    <div class="stat-label">SKUs Updated</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number">${summary.results?.inventory?.total || 0}</div>
-                <div class="stat-label">SKUs Updated</div>
+            
+            ${this.generateRetailerSections(summary.results)}
+            
+            <div class="details">
+                <h3>📋 Full Summary Details</h3>
+                <pre>${JSON.stringify(summary, null, 2)}</pre>
             </div>
-        </div>
-        
-        ${summary.results?.fulfillments?.errors?.length ? `
-        <div class="section">
-            <h3>❌ Fulfillment Errors (${summary.results.fulfillments.errors.length})</h3>
-            ${summary.results.fulfillments.errors.map(error => `
-                <div class="error-item">
-                    <strong>${error.retailer || 'Unknown'}:</strong> ${error.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${summary.results?.orders?.errors?.length ? `
-        <div class="section">
-            <h3>❌ Order Import Errors (${summary.results.orders.errors.length})</h3>
-            ${summary.results.orders.errors.map(error => `
-                <div class="error-item">
-                    <strong>${error.retailer || 'Unknown'}:</strong> ${error.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${summary.results?.inventory?.errors?.length ? `
-        <div class="section">
-            <h3>❌ Inventory Sync Errors (${summary.results.inventory.errors.length})</h3>
-            ${summary.results.inventory.errors.map(error => `
-                <div class="error-item">
-                    <strong>${error.retailer || 'Unknown'}:</strong> ${error.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${summary.results?.fulfillments?.success?.length ? `
-        <div class="section">
-            <h3>✅ Successful Fulfillments (${summary.results.fulfillments.success.length})</h3>
-            ${summary.results.fulfillments.success.map(item => `
-                <div class="success-item">
-                    <strong>${item.retailer || 'Unknown'}:</strong> ${item.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${summary.results?.orders?.success?.length ? `
-        <div class="section">
-            <h3>✅ Successful Order Imports (${summary.results.orders.success.length})</h3>
-            ${summary.results.orders.success.map(item => `
-                <div class="success-item">
-                    <strong>${item.retailer || 'Unknown'}:</strong> ${item.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${summary.results?.inventory?.success?.length ? `
-        <div class="section">
-            <h3>✅ Successful Inventory Updates (${summary.results.inventory.success.length})</h3>
-            ${summary.results.inventory.success.map(item => `
-                <div class="success-item">
-                    <strong>${item.retailer || 'Unknown'}:</strong> ${item.message}
-                </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        <div class="details">
-            <h3>Full Summary Details:</h3>
-            <pre>${JSON.stringify(summary, null, 2)}</pre>
         </div>
     </div>
 </body>
