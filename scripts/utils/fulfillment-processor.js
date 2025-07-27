@@ -49,10 +49,6 @@ class FulfillmentProcessor {
               name
               tags
               note
-              noteAttributes {
-                name
-                value
-              }
               fulfillments(first: 5) {
                 trackingInfo {
                   company
