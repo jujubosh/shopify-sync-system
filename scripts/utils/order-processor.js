@@ -9,7 +9,7 @@ class OrderProcessor {
     this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken);
     // LGL store (target) - where orders are imported
     this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken);
-    this.logger = new Logger(retailer.id || retailer.name);
+    this.logger = new Logger(retailer.id || retailer.name, config);
   }
 
   async processOrders() {
@@ -28,7 +28,7 @@ class OrderProcessor {
         }
       }
     } catch (error) {
-      this.logger.logError(`Failed to process orders: ${error.message}`);
+      this.logger.logError(`Failed to process orders: ${error.message}`, 'error', error);
       throw error;
     }
   }

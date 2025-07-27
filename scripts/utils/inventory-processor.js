@@ -9,7 +9,7 @@ class InventoryProcessor {
     this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken);
     // LGL store (target) - where we update inventory to
     this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken);
-    this.logger = new Logger(retailer.id || retailer.name);
+    this.logger = new Logger(retailer.id || retailer.name, config);
   }
 
   async processInventorySync() {
@@ -57,7 +57,7 @@ class InventoryProcessor {
       this.logger.logInfo(`Inventory sync completed: ${results.successful} successful, ${results.failed} failed`);
       return results;
     } catch (error) {
-      this.logger.logError(`Failed to process inventory sync: ${error.message}`);
+      this.logger.logError(`Failed to process inventory sync: ${error.message}`, 'error', error);
       throw error;
     }
   }

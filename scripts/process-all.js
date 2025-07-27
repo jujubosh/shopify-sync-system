@@ -3,6 +3,7 @@ const path = require('path');
 const { OrderProcessor } = require('./utils/order-processor');
 const { FulfillmentProcessor } = require('./utils/fulfillment-processor');
 const { InventoryProcessor } = require('./utils/inventory-processor');
+const { EmailNotifier } = require('./utils/email-notifier');
 
 function loadConfig() {
   return JSON.parse(fs.readFileSync(path.join(__dirname, '../config/global-config.json'), 'utf8'));
@@ -72,6 +73,7 @@ async function main() {
   
   const config = loadConfig();
   let retailers = loadRetailers();
+  const emailNotifier = new EmailNotifier(config);
   
   if (retailerId) {
     retailers = retailers.filter(r => r.id === retailerId);
@@ -82,6 +84,14 @@ async function main() {
   }
   
   console.log(`Processing ${operation} for ${retailers.length} retailer(s)`);
+  
+  const startTime = new Date();
+  const summary = {
+    operation,
+    startTime: startTime.toISOString(),
+    retailers: retailers.map(r => r.name),
+    results: {}
+  };
   
   try {
     switch (operation) {
@@ -103,9 +113,32 @@ async function main() {
         console.error('Invalid operation. Use: orders, fulfillments, inventory, or all');
         process.exit(1);
     }
+    
+    summary.endTime = new Date().toISOString();
+    summary.duration = new Date() - startTime;
+    summary.status = 'success';
+    
     console.log('Processing completed successfully');
+    
+    // Send summary notification if enabled
+    if (config.emailNotifications?.sendSummaries) {
+      await emailNotifier.sendSummaryNotification(summary);
+    }
+    
   } catch (error) {
+    summary.endTime = new Date().toISOString();
+    summary.duration = new Date() - startTime;
+    summary.status = 'error';
+    summary.error = error.message;
+    
     console.error('Fatal error:', error);
+    
+    // Send error notification
+    await emailNotifier.sendErrorNotification(error, {
+      operation,
+      retailers: retailers.map(r => r.name)
+    });
+    
     process.exit(1);
   }
 }

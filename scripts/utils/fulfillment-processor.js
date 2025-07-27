@@ -9,7 +9,7 @@ class FulfillmentProcessor {
     this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken);
     // Retail store (target) - where fulfillments are pushed back to
     this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken);
-    this.logger = new Logger(retailer.id || retailer.name);
+    this.logger = new Logger(retailer.id || retailer.name, config);
   }
 
   async processFulfillments() {
@@ -29,7 +29,7 @@ class FulfillmentProcessor {
         }
       }
     } catch (error) {
-      this.logger.logError(`Failed to process fulfillments: ${error.message}`);
+      this.logger.logError(`Failed to process fulfillments: ${error.message}`, 'error', error);
       throw error;
     }
   }
