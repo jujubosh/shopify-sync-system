@@ -14,9 +14,12 @@ class FulfillmentProcessor {
 
   async processFulfillments() {
     this.logger.logInfo('Starting fulfillment pushback process');
+    const results = { total: 0, success: [], errors: [] };
+    
     try {
       const orders = await this.getFulfilledTargetOrders();
       this.logger.logInfo(`Found ${orders.length} fulfilled orders to push back`);
+      results.total = orders.length;
       
       for (const order of orders) {
         try {
@@ -24,10 +27,14 @@ class FulfillmentProcessor {
           await this.pushFulfillmentToSource(order);
           await this.tagTargetOrder(order.id, 'fulfillment-pushed');
           this.logger.logInfo(`Successfully pushed fulfillment for target order ${order.name}`);
+          results.success.push(`Pushed fulfillment for order ${order.name}`);
         } catch (error) {
           this.logger.logError(`Failed to push fulfillment for target order ${order.name}: ${error.message}`);
+          results.errors.push(`Failed to push fulfillment for order ${order.name}: ${error.message}`);
         }
       }
+      
+      return results;
     } catch (error) {
       this.logger.logError(`Failed to process fulfillments: ${error.message}`, 'error', error);
       throw error;

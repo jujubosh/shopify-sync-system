@@ -14,19 +14,27 @@ class OrderProcessor {
 
   async processOrders() {
     this.logger.logInfo('Starting order import process');
+    const results = { total: 0, success: [], errors: [] };
+    
     try {
       const orders = await this.getEligibleOrders();
       this.logger.logInfo(`Found ${orders.length} eligible orders`);
+      results.total = orders.length;
+      
       for (const order of orders) {
         try {
           this.logger.logInfo(`Processing order ${order.name}`);
           const newOrderGid = await this.importOrder(order);
           await this.tagOrders(order, newOrderGid);
           this.logger.logInfo(`Successfully imported order ${order.name} as ${newOrderGid}`);
+          results.success.push(`Imported order ${order.name} as ${newOrderGid}`);
         } catch (error) {
           this.logger.logError(`Failed to import order ${order.name}: ${error.message}`);
+          results.errors.push(`Failed to import order ${order.name}: ${error.message}`);
         }
       }
+      
+      return results;
     } catch (error) {
       this.logger.logError(`Failed to process orders: ${error.message}`, 'error', error);
       throw error;

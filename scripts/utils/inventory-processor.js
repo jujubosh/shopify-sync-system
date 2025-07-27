@@ -14,18 +14,13 @@ class InventoryProcessor {
 
   async processInventorySync() {
     this.logger.logInfo('Starting inventory sync process');
+    const results = { total: 0, success: [], errors: [] };
+    
     try {
       const skus = await this.fetchAllSkus();
       this.logger.logInfo(`Found ${skus.length} SKUs to sync`);
+      results.total = skus.length;
       
-      const results = {
-        total: skus.length,
-        processed: 0,
-        successful: 0,
-        failed: 0,
-        errors: []
-      };
-
       const BATCH_SIZE = 10;
       const DELAY_BETWEEN_BATCHES = 2000;
 
@@ -35,8 +30,7 @@ class InventoryProcessor {
         
         try {
           await Promise.all(batch.map(sku => this.syncInventory(sku)));
-          results.processed += batch.length;
-          results.successful += batch.length;
+          batch.forEach(sku => results.success.push(`Synced inventory for SKU: ${sku}`));
           this.logger.logInfo(`Completed batch ${Math.floor(i/BATCH_SIZE) + 1}`);
           
           if (i + BATCH_SIZE < skus.length) {
@@ -45,16 +39,11 @@ class InventoryProcessor {
           }
         } catch (error) {
           this.logger.logError(`Error processing batch ${Math.floor(i/BATCH_SIZE) + 1}: ${error.message}`);
-          results.processed += batch.length;
-          results.failed += batch.length;
-          results.errors.push({
-            batch: Math.floor(i/BATCH_SIZE) + 1,
-            error: error.message
-          });
+          batch.forEach(sku => results.errors.push(`Failed to sync inventory for SKU ${sku}: ${error.message}`));
         }
       }
 
-      this.logger.logInfo(`Inventory sync completed: ${results.successful} successful, ${results.failed} failed`);
+      this.logger.logInfo(`Inventory sync completed: ${results.success.length} successful, ${results.errors.length} failed`);
       return results;
     } catch (error) {
       this.logger.logError(`Failed to process inventory sync: ${error.message}`, 'error', error);

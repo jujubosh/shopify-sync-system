@@ -21,6 +21,8 @@ function loadRetailers() {
 
 async function processOrders(retailers, config) {
   console.log('=== Processing Order Imports ===');
+  const results = { total: 0, success: [], errors: [] };
+  
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.importOrders) {
       console.log(`Skipping ${retailer.name}: disabled or import disabled`);
@@ -28,15 +30,24 @@ async function processOrders(retailers, config) {
     }
     try {
       const processor = new OrderProcessor(retailer, config);
-      await processor.processOrders();
+      const orderResult = await processor.processOrders();
+      results.total += orderResult?.total || 0;
+      if (orderResult?.success) {
+        results.success.push({ retailer: retailer.name, message: orderResult.success });
+      }
     } catch (error) {
       console.error(`Failed to process orders for ${retailer.name}:`, error);
+      results.errors.push({ retailer: retailer.name, message: error.message });
     }
   }
+  
+  return results;
 }
 
 async function processFulfillments(retailers, config) {
   console.log('=== Processing Fulfillment Pushbacks ===');
+  const results = { total: 0, success: [], errors: [] };
+  
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.pushFulfillments) {
       console.log(`Skipping ${retailer.name}: disabled or fulfillment pushback disabled`);
@@ -44,15 +55,24 @@ async function processFulfillments(retailers, config) {
     }
     try {
       const processor = new FulfillmentProcessor(retailer, config);
-      await processor.processFulfillments();
+      const fulfillmentResult = await processor.processFulfillments();
+      results.total += fulfillmentResult?.total || 0;
+      if (fulfillmentResult?.success) {
+        results.success.push({ retailer: retailer.name, message: fulfillmentResult.success });
+      }
     } catch (error) {
       console.error(`Failed to process fulfillments for ${retailer.name}:`, error);
+      results.errors.push({ retailer: retailer.name, message: error.message });
     }
   }
+  
+  return results;
 }
 
 async function processInventorySync(retailers, config) {
   console.log('=== Processing Inventory Sync ===');
+  const results = { total: 0, success: [], errors: [] };
+  
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.syncInventory) {
       console.log(`Skipping ${retailer.name}: disabled or inventory sync disabled`);
@@ -60,11 +80,18 @@ async function processInventorySync(retailers, config) {
     }
     try {
       const processor = new InventoryProcessor(retailer, config);
-      await processor.processInventorySync();
+      const inventoryResult = await processor.processInventorySync();
+      results.total += inventoryResult?.total || 0;
+      if (inventoryResult?.success) {
+        results.success.push({ retailer: retailer.name, message: inventoryResult.success });
+      }
     } catch (error) {
       console.error(`Failed to process inventory sync for ${retailer.name}:`, error);
+      results.errors.push({ retailer: retailer.name, message: error.message });
     }
   }
+  
+  return results;
 }
 
 async function main() {
@@ -96,18 +123,18 @@ async function main() {
   try {
     switch (operation) {
       case 'orders':
-        await processOrders(retailers, config);
+        summary.results.orders = await processOrders(retailers, config);
         break;
       case 'fulfillments':
-        await processFulfillments(retailers, config);
+        summary.results.fulfillments = await processFulfillments(retailers, config);
         break;
       case 'inventory':
-        await processInventorySync(retailers, config);
+        summary.results.inventory = await processInventorySync(retailers, config);
         break;
       case 'all':
-        await processFulfillments(retailers, config);
-        await processOrders(retailers, config);
-        await processInventorySync(retailers, config);
+        summary.results.fulfillments = await processFulfillments(retailers, config);
+        summary.results.orders = await processOrders(retailers, config);
+        summary.results.inventory = await processInventorySync(retailers, config);
         break;
       default:
         console.error('Invalid operation. Use: orders, fulfillments, inventory, or all');
