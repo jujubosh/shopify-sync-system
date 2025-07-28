@@ -5,7 +5,7 @@ class EmailNotifier {
     this.apiKey = process.env.MAILGUN_API_KEY;
     this.domain = process.env.MAILGUN_DOMAIN;
     this.baseUrl = 'https://api.mailgun.net';
-    this.fromEmail = 'shopify-sync@livegoodlogistics.com';
+    this.fromEmail = 'shopify-sync@email.livegoodlogistics.com';
     this.toEmail = config.emailNotifications?.toEmail || 'justin@livegoodlogistics.com';
     this.enabled = config.emailNotifications?.enabled !== false;
     
