@@ -1,4 +1,6 @@
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 class EmailNotifier {
   constructor(config) {
@@ -8,6 +10,16 @@ class EmailNotifier {
     this.fromEmail = 'shopify-sync@livegoodlogistics.com';
     this.toEmail = config.emailNotifications?.toEmail || 'justin@livegoodlogistics.com';
     this.enabled = config.emailNotifications?.enabled !== false;
+    
+    // Load logo
+    try {
+      const logoPath = path.join(process.cwd(), 'Live-Good-Word_Green_Final.png');
+      const logoBuffer = fs.readFileSync(logoPath);
+      this.logoBase64 = logoBuffer.toString('base64');
+    } catch (error) {
+      console.warn('Could not load logo:', error.message);
+      this.logoBase64 = null;
+    }
   }
 
   async sendEmail(subject, body, isError = false, htmlBody = null) {
@@ -95,6 +107,9 @@ ${JSON.stringify(context, null, 2)}
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
         .container { max-width: 700px; margin: 0 auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
         .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 25px; text-align: center; }
+        .header-content { display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .logo { width: 120px; height: auto; }
+        .header-text { text-align: left; }
         .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
         .header .subtitle { margin-top: 5px; opacity: 0.9; font-size: 14px; }
         .content { padding: 30px; }
@@ -110,8 +125,13 @@ ${JSON.stringify(context, null, 2)}
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚨 Shopify Sync System Error</h1>
-            <div class="subtitle">Critical system error detected</div>
+            <div class="header-content">
+                <img src="data:image/png;base64,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" alt="Live Good Logistics" class="logo">
+                <div class="header-text">
+                    <h1>🚨 Shopify Sync System Error</h1>
+                    <div class="subtitle">Critical system error detected</div>
+                </div>
+            </div>
         </div>
         
         <div class="content">
@@ -300,8 +320,13 @@ ${JSON.stringify(summary, null, 2)}
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Shopify Sync System Summary</h1>
-            <div class="subtitle">Automated synchronization report</div>
+            <div class="header-content">
+                <img src="data:image/png;base64,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" alt="Live Good Logistics" class="logo">
+                <div class="header-text">
+                    <h1>📊 Shopify Sync System Summary</h1>
+                    <div class="subtitle">Automated synchronization report</div>
+                </div>
+            </div>
         </div>
         
         <div class="content">
