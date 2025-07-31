@@ -102,6 +102,10 @@ class OrderProcessor {
                 country
                 phone
               }
+              noteAttributes {
+                name
+                value
+              }
             }
           }
         }
@@ -207,6 +211,30 @@ class OrderProcessor {
     tag1 = tag1.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 40);
     tag2 = tag2.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 40);
     const tags = `${tag1},${tag2}`;
+    // Prepare note attributes
+    const noteAttributes = [
+      { name: 'order_number', value: order.name.replace('#', '') }
+    ];
+    
+    // Add __flare_ship_date for Nationwide Plants orders
+    if (this.retailer.name === 'Nationwide Plants') {
+      // Check if ship date exists in source order note attributes
+      const sourceShipDateAttr = order.noteAttributes?.find(attr => attr.name === '__flare_ship_date');
+      let shipDate;
+      
+      if (sourceShipDateAttr) {
+        // Use existing ship date from source order
+        shipDate = sourceShipDateAttr.value;
+        this.logger.logInfo(`Using existing ship date from source order: ${shipDate}`);
+      } else {
+        // Get current date in YYYY-MM-DD format for ship date (e.g., 2025-08-01)
+        shipDate = new Date().toISOString().split('T')[0];
+        this.logger.logInfo(`Using current date as ship date: ${shipDate}`);
+      }
+      
+      noteAttributes.push({ name: '__flare_ship_date', value: shipDate });
+    }
+    
     const orderPayload = {
       order: {
         email: billingAddress.email,
@@ -216,9 +244,7 @@ class OrderProcessor {
         tags,
         financial_status: 'paid',
         inventory_behaviour: 'decrement_ignoring_policy',
-        note_attributes: [
-          { name: 'order_number', value: order.name.replace('#', '') }
-        ],
+        note_attributes: noteAttributes,
         note: order.note || undefined,
       },
     };
