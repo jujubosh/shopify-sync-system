@@ -102,10 +102,7 @@ class OrderProcessor {
                 country
                 phone
               }
-              noteAttributes {
-                name
-                value
-              }
+              note
             }
           }
         }
@@ -218,19 +215,10 @@ class OrderProcessor {
     
     // Add __flare_ship_date for Nationwide Plants orders
     if (this.retailer.name === 'Nationwide Plants') {
-      // Check if ship date exists in source order note attributes
-      const sourceShipDateAttr = order.noteAttributes?.find(attr => attr.name === '__flare_ship_date');
-      let shipDate;
-      
-      if (sourceShipDateAttr) {
-        // Use existing ship date from source order
-        shipDate = sourceShipDateAttr.value;
-        this.logger.logInfo(`Using existing ship date from source order: ${shipDate}`);
-      } else {
-        // Get current date in YYYY-MM-DD format for ship date (e.g., 2025-08-01)
-        shipDate = new Date().toISOString().split('T')[0];
-        this.logger.logInfo(`Using current date as ship date: ${shipDate}`);
-      }
+      // For Nationwide Plants, always use current date as ship date
+      // Note: In a real implementation, you might want to extract this from order metafields
+      const shipDate = new Date().toISOString().split('T')[0];
+      this.logger.logInfo(`Using current date as ship date for Nationwide Plants: ${shipDate}`);
       
       noteAttributes.push({ name: '__flare_ship_date', value: shipDate });
     }
