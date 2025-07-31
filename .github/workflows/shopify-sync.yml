@@ -44,6 +44,7 @@ jobs:
         RETAILER_ID: ${{ github.event.inputs.retailer || '' }}
         SHOPIFY_LGL_TOKEN: ${{ secrets.SHOPIFY_LGL_TOKEN }}
         SHOPIFY_TEST_TOKEN: ${{ secrets.SHOPIFY_TEST_TOKEN }}
+        SHOPIFY_NATIONWIDE_PLANTS_TOKEN: ${{ secrets.SHOPIFY_NATIONWIDE_PLANTS_TOKEN }}
         MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
       run: |
