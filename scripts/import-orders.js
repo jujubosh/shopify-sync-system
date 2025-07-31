@@ -3,7 +3,11 @@ const path = require('path');
 const { OrderProcessor } = require('./utils/order-processor');
 
 function loadConfig() {
-  return JSON.parse(fs.readFileSync(path.join(__dirname, '../config/global-config.json'), 'utf8'));
+  // Check if we're in test mode
+  const configFile = process.env.TEST_CONFIG 
+    ? path.join(__dirname, '../config/global-config-test.json')
+    : path.join(__dirname, '../config/global-config.json');
+  return JSON.parse(fs.readFileSync(configFile, 'utf8'));
 }
 
 function loadRetailers() {

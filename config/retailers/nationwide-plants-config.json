@@ -1,0 +1,29 @@
+{
+  "name": "Nationwide Plants",
+  "domain": "83e136-83.myshopify.com",
+  "apiToken": "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",
+  "lglLocationId": "84385005803",
+  "targetLocationId": "gid://shopify/Location/84385005803",
+  "billingAddress": {
+    "email": "info@nationwideplants.com",
+    "first_name": "B2B:",
+    "last_name": "nationwideplants-com",
+    "address1": "321 Candella Dr.",
+    "city": "Matthews",
+    "province": "NC",
+    "zip": "28104",
+    "country": "United States"
+  },
+  "settings": {
+    "enabled": true,
+    "importOrders": true,
+    "pushFulfillments": true,
+    "customFields": {
+      "includeNote": true,
+      "includeTags": true
+    },
+    "lookbackHours": 6,
+    "fulfillmentLookbackHours": 24,
+    "syncInventory": true
+  }
+} 
