@@ -3,7 +3,9 @@ const https = require('https');
 class EmailNotifier {
   constructor(config) {
     // Use config Mailgun credentials if available, otherwise fall back to environment variables
-    this.apiKey = config.mailgun?.apiKey || process.env.MAILGUN_API_KEY;
+    this.apiKey = config.mailgun?.apiKey && !config.mailgun.apiKey.startsWith('MAILGUN_') 
+      ? config.mailgun.apiKey 
+      : (process.env[config.mailgun?.apiKey] || process.env.MAILGUN_API_KEY);
     this.domain = config.mailgun?.domain || process.env.MAILGUN_DOMAIN;
     this.baseUrl = 'https://api.mailgun.net';
     this.fromEmail = 'shopify-sync@email.livegoodlogistics.com';

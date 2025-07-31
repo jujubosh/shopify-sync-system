@@ -1,7 +1,7 @@
 {
   "name": "Nationwide Plants",
   "domain": "83e136-83.myshopify.com",
-  "apiToken": "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",
+  "apiToken": "SHOPIFY_NATIONWIDE_PLANTS_TOKEN",
   "lglLocationId": "84385005803",
   "targetLocationId": "gid://shopify/Location/84385005803",
   "billingAddress": {
