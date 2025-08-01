@@ -2,7 +2,7 @@
 
 A comprehensive, production-ready system for synchronizing orders, fulfillments, and inventory across multiple Shopify stores with advanced email notifications and monitoring.
 
-## 🚀 Features
+## Features
 
 ### Core Operations
 - **Multi-retailer support**: Config-driven approach for easy retailer management
@@ -27,14 +27,14 @@ A comprehensive, production-ready system for synchronizing orders, fulfillments,
 - **Performance metrics**: Duration tracking and optimization insights
 - **Debug capabilities**: Optional detailed debugging information
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Node.js 14+
 - npm or yarn
 - DigitalOcean account (for cloud deployment)
 - Mailgun account (for email notifications)
 
-## 🛠️ Installation
+## Installation
 
 ```bash
 # Clone the repository
@@ -45,13 +45,13 @@ cd shopify-sync-system
 npm install
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### 1. Global Configuration (`config/global-config.json`)
 
 ```json
 {
-  "lglStore": {
+  "targetStore": {
     "domain": "your-target-store.myshopify.com",
     "apiToken": "your-api-token"
   },
@@ -75,8 +75,8 @@ npm install
   },
   "emailNotifications": {
     "enabled": true,
-    "fromEmail": "admin@livegoodlogistics.com",
-    "toEmail": "justin@livegoodlogistics.com",
+    "fromEmail": "admin@yourcompany.com",
+    "toEmail": "admin@yourcompany.com",
     "sendErrors": true,
     "sendSummaries": true,
     "sendFulfillmentAlerts": true,
@@ -106,7 +106,7 @@ npm install
   "name": "Retailer Name",
   "domain": "retailer-store.myshopify.com",
   "apiToken": "retailer-api-token",
-  "lglLocationId": "location-id",
+  "targetLocationId": "location-id",
   "billingAddress": {
     "email": "billing@example.com",
     "first_name": "B2B:",
@@ -132,7 +132,7 @@ npm install
 }
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Local Development
 
@@ -171,7 +171,7 @@ node scripts/test-email-notifications.js --debug
 node scripts/test-email-notifications.js --reset
 ```
 
-## ☁️ DigitalOcean Functions Deployment
+## DigitalOcean Functions Deployment
 
 ### Prerequisites
 
@@ -228,7 +228,7 @@ curl -X POST "https://faas-nyc1-xxxx.functions.digitalocean.com/api/v1/web/your-
   -d '{"operation": "all"}'
 ```
 
-## 📧 Email Notifications
+## Email Notifications
 
 The system includes a comprehensive email notification system with:
 
@@ -248,7 +248,7 @@ The system includes a comprehensive email notification system with:
 
 For detailed email system documentation, see [EMAIL_SYSTEM.md](./EMAIL_SYSTEM.md).
 
-## 📊 Monitoring & Analytics
+## Monitoring & Analytics
 
 ### Email Statistics
 ```javascript
@@ -264,7 +264,7 @@ console.log('Last email times:', stats.lastEmailTimes);
 - Analyze performance patterns
 - Debug issues with detailed logs
 
-## 🏗️ Architecture
+## Architecture
 
 ### File Structure
 ```
@@ -311,7 +311,7 @@ test-ds-process/
 - **ShopifyClient**: API client for Shopify operations
 - **Logger**: Comprehensive logging system
 
-## 🔧 Adding New Retailers
+## Adding New Retailers
 
 1. Create a new config file in `config/retailers/`:
    ```bash
@@ -322,12 +322,12 @@ test-ds-process/
 
 3. No code changes needed! The system will automatically pick up the new retailer.
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
 1. **API Token Issues**: Ensure all API tokens have the necessary permissions
-2. **Location ID**: Verify the LGL location ID is correct for each retailer
+2. **Location ID**: Verify the target location ID is correct for each retailer
 3. **Lookback Windows**: Adjust lookback hours if orders aren't being found
 4. **Email Notifications**: Check email configuration and Mailgun credentials
 5. **Rate Limiting**: Reset email state if rate limiting is too restrictive
@@ -350,7 +350,7 @@ emailNotifier.resetEmailState();
 
 Check retailer-specific logs in `logs/retailer-specific/` for detailed error information.
 
-## 📈 Performance
+## Performance
 
 ### Optimizations
 - **Batch processing**: Efficient handling of large datasets
@@ -365,7 +365,7 @@ Check retailer-specific logs in `logs/retailer-specific/` for detailed error inf
 - **Error rates**: Identify and resolve issues quickly
 - **Activity patterns**: Optimize scheduling based on usage
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -373,7 +373,7 @@ Check retailer-specific logs in `logs/retailer-specific/` for detailed error inf
 4. Test thoroughly
 5. Submit a pull request
 
-## 📞 Support
+## Support
 
 For issues or questions:
 - Check the logs in the `logs/` directory
@@ -381,10 +381,10 @@ For issues or questions:
 - Test email notifications with `scripts/test-email-notifications.js`
 - Monitor email statistics and activity tracking
 
-## 📄 License
+## License
 
-This project is proprietary software for Live Good Logistics.
+This project is open source software.
 
 ---
 
-**Status**: ✅ **Production Ready** - Comprehensive Shopify sync system with advanced email notifications and monitoring. 
+**Status**: Production Ready - Comprehensive Shopify sync system with advanced email notifications and monitoring. 
