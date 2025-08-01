@@ -53,6 +53,8 @@ jobs:
         EMAIL_FROM: admin@livegoodlogistics.com
         EMAIL_TO: justin@livegoodlogistics.com
         LOG_LEVEL: info
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       run: |
         # Determine operation based on cron schedule or manual input
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
