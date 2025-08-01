@@ -21,6 +21,11 @@ async function testEmailNotifications() {
   // Initialize email notifier
   const emailNotifier = new EmailNotifier(config);
   
+  // Always reset email state before testing to ensure fresh emails
+  console.log('🔄 Resetting email state for fresh test...');
+  emailNotifier.resetEmailState();
+  console.log('✅ Email state reset complete\n');
+  
   // Test 1: Configuration validation
   console.log('1. Configuration Validation:');
   console.log('   - Email notifications enabled:', emailNotifier.enabled);

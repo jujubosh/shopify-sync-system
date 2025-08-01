@@ -26,8 +26,8 @@
     "sendFulfillmentAlerts": true,
     "sendOrderAlerts": true,
     "sendInventoryAlerts": true,
-    "minActivityThreshold": 1,
-    "rateLimitMinutes": 30,
+    "minActivityThreshold": 0,
+    "rateLimitMinutes": 120,
     "quietHours": {
       "start": 22,
       "end": 7
@@ -36,8 +36,11 @@
     "retryDelayMs": 5000,
     "exponentialBackoff": true,
     "includeDebugInfo": false,
-    "subjectPrefix": "[Shopify Sync]",
+    "subjectPrefix": "",
     "activityTracking": true,
-    "maxActivityHistory": 100
+    "maxActivityHistory": 100,
+    "githubActionsMode": true,
+    "enhancedTemplates": true,
+    "sendOnAnyActivity": true
   }
 } 

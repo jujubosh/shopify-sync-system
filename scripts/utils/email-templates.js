@@ -9,190 +9,213 @@ class EmailTemplates {
   getBaseStyles() {
     return `
       body { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
         margin: 0; 
-        padding: 20px; 
+        padding: 10px; 
         background-color: #f8f9fa; 
-        line-height: 1.6;
+        line-height: 1.4;
         -webkit-text-size-adjust: 100%;
         -ms-text-size-adjust: 100%;
+        color: #333;
+        font-size: 14px;
       }
       .container { 
-        max-width: 700px; 
+        max-width: 600px; 
         margin: 0 auto; 
         background-color: white; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        border-radius: 8px; 
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
         overflow: hidden; 
       }
       .header { 
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%); 
         color: white; 
-        padding: 30px; 
+        padding: 20px 15px; 
         text-align: center; 
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
       }
       .header-content { 
         display: flex; 
         align-items: center; 
         justify-content: center; 
-        gap: 20px; 
+        gap: 15px; 
         flex-wrap: wrap;
       }
       .logo { 
-        width: 250px; 
+        width: 180px; 
         height: auto; 
-        border-radius: 8px;
+        border-radius: 6px;
         max-width: 100%;
       }
       .header-text { 
         text-align: left; 
         flex: 1;
-        min-width: 200px;
+        min-width: 150px;
       }
       .header h1 { 
         margin: 0; 
-        font-size: 28px; 
-        font-weight: 600; 
+        font-size: 24px; 
+        font-weight: 700; 
         word-wrap: break-word;
+        line-height: 1.2;
+        color: #198754;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.4);
       }
       .header .subtitle { 
-        margin-top: 8px; 
-        opacity: 0.9; 
-        font-size: 16px; 
+        margin-top: 6px; 
+        opacity: 0.95; 
+        font-size: 14px; 
+        font-weight: 400;
+        color: #155724;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
       }
       .content { 
-        padding: 35px; 
+        padding: 20px 15px; 
+      }
+      .execution-time {
+        background-color: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 6px;
+        padding: 12px 15px;
+        margin-bottom: 15px;
+        font-size: 13px;
+        color: #1565c0;
+        font-weight: 500;
       }
       .stats { 
         display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-        gap: 20px; 
-        margin: 25px 0; 
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+        gap: 12px; 
+        margin: 15px 0; 
       }
       .stat-card { 
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); 
         border: 1px solid #e9ecef; 
-        border-radius: 12px; 
-        padding: 25px; 
+        border-radius: 8px; 
+        padding: 15px 12px; 
         text-align: center; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        transition: transform 0.2s ease;
-      }
-      .stat-card:hover {
-        transform: translateY(-2px);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
       }
       .stat-number { 
-        font-size: 2.5em; 
-        font-weight: bold; 
-        margin-bottom: 8px; 
+        font-size: 2.2em; 
+        font-weight: 800; 
+        margin-bottom: 6px; 
+        line-height: 1;
       }
       .stat-label { 
-        color: #6c757d; 
-        font-size: 14px; 
-        font-weight: 500;
+        color: #495057; 
+        font-size: 12px; 
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
       }
       .item { 
-        padding: 15px 20px; 
-        margin: 10px 0; 
-        border-radius: 8px; 
+        padding: 12px 15px; 
+        margin: 8px 0; 
+        border-radius: 6px; 
         border-left: 4px solid; 
-        font-size: 14px;
+        font-size: 13px;
         word-wrap: break-word;
+        line-height: 1.4;
       }
       .success-item { 
         background-color: #d4edda; 
         border-color: #28a745; 
         color: #155724; 
+        font-weight: 500;
       }
       .error-item { 
         background-color: #f8d7da; 
         border-color: #dc3545; 
         color: #721c24; 
+        font-weight: 500;
       }
       .warning-item { 
         background-color: #fff3cd; 
         border-color: #ffc107; 
         color: #856404; 
+        font-weight: 500;
       }
       .section { 
-        margin: 30px 0; 
+        margin: 20px 0; 
       }
       .section-header { 
         display: flex; 
         align-items: center; 
-        margin-bottom: 20px; 
-        padding-bottom: 15px; 
+        margin-bottom: 15px; 
+        padding-bottom: 10px; 
         border-bottom: 2px solid #e9ecef; 
         flex-wrap: wrap;
       }
       .section-icon { 
-        font-size: 24px; 
-        margin-right: 15px; 
+        font-size: 20px; 
+        margin-right: 10px; 
       }
       .section-title { 
-        color: #495057; 
-        font-size: 20px; 
-        font-weight: 600; 
+        color: #2c3e50; 
+        font-size: 18px; 
+        font-weight: 700; 
         margin: 0; 
         flex: 1;
-        min-width: 150px;
+        min-width: 120px;
       }
       .section-count { 
         background-color: #007bff; 
         color: white; 
         padding: 4px 12px; 
-        border-radius: 20px; 
-        font-size: 12px; 
-        margin-left: 15px; 
-        font-weight: 600;
+        border-radius: 15px; 
+        font-size: 11px; 
+        margin-left: 10px; 
+        font-weight: 700;
       }
       .retailer-group { 
-        margin: 20px 0; 
+        margin: 15px 0; 
       }
       .retailer-header { 
         background-color: #e9ecef; 
-        padding: 12px 20px; 
-        border-radius: 8px; 
-        margin-bottom: 15px; 
-        font-weight: 600; 
+        padding: 10px 15px; 
+        border-radius: 6px; 
+        margin-bottom: 12px; 
+        font-weight: 700; 
         color: #495057; 
-        font-size: 14px;
+        font-size: 13px;
       }
       .details { 
         background-color: #f8f9fa; 
         border: 1px solid #dee2e6; 
-        border-radius: 10px; 
-        padding: 25px; 
-        margin-top: 30px; 
+        border-radius: 8px; 
+        padding: 15px; 
+        margin-top: 20px; 
       }
       .details h3 { 
-        color: #495057; 
+        color: #2c3e50; 
         margin-top: 0; 
-        margin-bottom: 15px;
+        margin-bottom: 12px;
+        font-size: 16px;
+        font-weight: 700;
       }
       pre { 
         white-space: pre-wrap; 
         word-wrap: break-word; 
         background-color: white; 
-        padding: 20px; 
-        border-radius: 8px; 
+        padding: 12px; 
+        border-radius: 6px; 
         border: 1px solid #dee2e6; 
-        font-size: 12px; 
+        font-size: 11px; 
         overflow-x: auto; 
-        font-family: 'Courier New', monospace;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         line-height: 1.4;
         max-width: 100%;
+        color: #2c3e50;
       }
       .status-badge { 
         display: inline-block; 
-        padding: 6px 16px; 
-        border-radius: 25px; 
-        font-size: 12px; 
-        font-weight: 600; 
+        padding: 6px 12px; 
+        border-radius: 20px; 
+        font-size: 11px; 
+        font-weight: 700; 
         text-transform: uppercase; 
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
       }
       .status-success { 
         background-color: #d4edda; 
@@ -205,82 +228,84 @@ class EmailTemplates {
       .retailers-list { 
         display: flex; 
         flex-wrap: wrap; 
-        gap: 10px; 
-        margin-top: 15px; 
+        gap: 8px; 
+        margin-top: 10px; 
       }
       .retailer-tag { 
         background-color: #007bff; 
         color: white; 
         padding: 6px 12px; 
-        border-radius: 15px; 
-        font-size: 12px; 
-        font-weight: 500;
+        border-radius: 12px; 
+        font-size: 11px; 
+        font-weight: 600;
       }
       .error-details { 
         background-color: #f8d7da; 
         border: 1px solid #f5c6cb; 
-        border-radius: 10px; 
-        padding: 25px; 
-        margin: 25px 0; 
+        border-radius: 8px; 
+        padding: 15px; 
+        margin: 15px 0; 
       }
       .context { 
         background-color: #f8f9fa; 
         border: 1px solid #dee2e6; 
-        border-radius: 10px; 
-        padding: 25px; 
-        margin-top: 25px; 
+        border-radius: 8px; 
+        padding: 15px; 
+        margin-top: 15px; 
       }
       .info-grid { 
         display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
-        gap: 20px; 
-        margin: 25px 0; 
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); 
+        gap: 12px; 
+        margin: 15px 0; 
       }
       .info-item { 
         background-color: #f8f9fa; 
-        padding: 20px; 
-        border-radius: 10px; 
+        padding: 12px; 
+        border-radius: 8px; 
         border-left: 4px solid #007bff; 
       }
       .info-label { 
-        font-size: 12px; 
+        font-size: 11px; 
         color: #6c757d; 
         text-transform: uppercase; 
-        letter-spacing: 0.5px; 
-        margin-bottom: 8px; 
-        font-weight: 600;
+        letter-spacing: 0.3px; 
+        margin-bottom: 6px; 
+        font-weight: 700;
       }
       .info-value { 
-        font-weight: 600; 
-        color: #495057; 
-        font-size: 14px;
+        font-weight: 700; 
+        color: #2c3e50; 
+        font-size: 13px;
         word-wrap: break-word;
       }
       .footer {
         background-color: #f8f9fa;
-        padding: 20px;
+        padding: 15px;
         text-align: center;
         color: #6c757d;
-        font-size: 12px;
+        font-size: 11px;
         border-top: 1px solid #dee2e6;
       }
       .footer a {
         color: #007bff;
         text-decoration: none;
+        font-weight: 600;
       }
       .footer a:hover {
         text-decoration: underline;
       }
       .progress-bar {
         background-color: #e9ecef;
-        border-radius: 10px;
+        border-radius: 8px;
         height: 8px;
-        margin: 10px 0;
+        margin: 8px 0;
         overflow: hidden;
+        border: 1px solid #dee2e6;
       }
       .progress-fill {
         height: 100%;
-        border-radius: 10px;
+        border-radius: 8px;
         transition: width 0.3s ease;
       }
       .progress-success {
@@ -294,68 +319,171 @@ class EmailTemplates {
       }
       .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 15px;
-        margin: 20px 0;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin: 15px 0;
       }
       .summary-item {
         background-color: #f8f9fa;
-        padding: 15px;
+        padding: 12px;
         border-radius: 8px;
         text-align: center;
         border: 1px solid #dee2e6;
       }
       .summary-number {
-        font-size: 1.5em;
-        font-weight: bold;
-        color: #495057;
+        font-size: 1.6em;
+        font-weight: 800;
+        color: #2c3e50;
+        line-height: 1;
       }
       .summary-label {
-        font-size: 12px;
+        font-size: 11px;
         color: #6c757d;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 5px;
+        letter-spacing: 0.3px;
+        margin-top: 6px;
+        font-weight: 600;
       }
       .debug-info {
         background-color: #f8f9fa;
         border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 15px 0;
+        border-radius: 6px;
+        padding: 12px;
+        margin: 12px 0;
         font-size: 11px;
         color: #6c757d;
       }
       .debug-info pre {
-        margin: 10px 0 0 0;
-        padding: 10px;
+        margin: 8px 0 0 0;
+        padding: 8px;
         font-size: 10px;
       }
-      @media (max-width: 600px) {
-        .header-content {
-          flex-direction: column;
-          text-align: center;
+      .action-buttons {
+        margin: 20px 0;
+        text-align: center;
+      }
+      .action-button {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 0 8px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        transition: background-color 0.2s ease;
+      }
+      .action-button:hover {
+        background-color: #0056b3;
+      }
+      .action-button.secondary {
+        background-color: #6c757d;
+      }
+      .action-button.secondary:hover {
+        background-color: #545b62;
+      }
+      .quick-stats {
+        background-color: #e8f5e8;
+        border: 1px solid #28a745;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 15px 0;
+      }
+      .quick-stats h3 {
+        margin: 0 0 12px 0;
+        color: #155724;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .quick-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 10px;
+      }
+      .quick-stat {
+        text-align: center;
+        padding: 8px;
+        background-color: white;
+        border-radius: 6px;
+        border: 1px solid #d4edda;
+      }
+      .quick-stat-number {
+        font-size: 1.2em;
+        font-weight: 800;
+        color: #28a745;
+        line-height: 1;
+      }
+      .quick-stat-label {
+        font-size: 10px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-top: 4px;
+        font-weight: 600;
+      }
+      @media (max-width: 480px) {
+        body {
+          padding: 5px;
         }
-        .header-text {
-          text-align: center;
+        .container {
+          border-radius: 6px;
+        }
+        .header {
+          padding: 15px 10px;
+        }
+        .header h1 {
+          font-size: 20px;
+        }
+        .header .subtitle {
+          font-size: 12px;
+        }
+        .logo {
+          width: 140px;
+        }
+        .content {
+          padding: 15px 10px;
         }
         .stats {
           grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .stat-card {
+          padding: 12px 8px;
+        }
+        .stat-number {
+          font-size: 1.8em;
         }
         .info-grid {
           grid-template-columns: 1fr;
+          gap: 8px;
         }
         .summary-grid {
           grid-template-columns: 1fr;
+          gap: 8px;
         }
-        .content {
-          padding: 20px;
+        .quick-stats-grid {
+          grid-template-columns: repeat(2, 1fr);
         }
-        .header {
-          padding: 20px;
+        .action-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
-        .header h1 {
-          font-size: 24px;
+        .action-button {
+          margin: 0;
+          padding: 12px 16px;
+        }
+        .item {
+          padding: 10px 12px;
+          font-size: 12px;
+        }
+        .section-title {
+          font-size: 16px;
+        }
+        .execution-time {
+          padding: 10px 12px;
+          font-size: 12px;
         }
       }
     `;
@@ -365,6 +493,12 @@ class EmailTemplates {
     const { fulfillments, timestamp } = data;
     const totalFulfillments = (fulfillments.success?.length || 0) + (fulfillments.errors?.length || 0);
     const successRate = totalFulfillments > 0 ? Math.round((fulfillments.success?.length || 0) / totalFulfillments * 100) : 0;
+    
+    // Get unique retailers for better organization
+    const retailers = [...new Set([
+      ...(fulfillments.success?.map(item => item.retailer) || []),
+      ...(fulfillments.errors?.map(item => item.retailer) || [])
+    ])];
     
     return `
 <!DOCTYPE html>
@@ -387,14 +521,14 @@ class EmailTemplates {
             <div class="header-content">
                 <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
                 <div class="header-text">
-                    <h1>📦 Fulfillment Processing Alert</h1>
-                    <div class="subtitle">Automated fulfillment status update</div>
+                    <h1>Fulfillment Processing Alert</h1>
+                    <div class="subtitle">${totalFulfillments > 0 ? `${totalFulfillments} fulfillment(s) processed` : 'No fulfillments to process'}</div>
                 </div>
             </div>
         </div>
         
         <div class="content">
-            <div style="margin-bottom: 25px;">
+            <div class="execution-time">
                 <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
             </div>
             
@@ -415,7 +549,7 @@ class EmailTemplates {
             
             ${totalFulfillments > 0 ? `
             <div style="margin: 20px 0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;">
                     <span>Success Rate</span>
                     <span>${successRate}%</span>
                 </div>
@@ -425,13 +559,36 @@ class EmailTemplates {
             </div>
             ` : ''}
             
+            ${retailers.length > 0 ? `
+            <div class="quick-stats">
+                <h3>Retailers Processed</h3>
+                <div class="quick-stats-grid">
+                    ${retailers.map(retailer => {
+                        const successCount = fulfillments.success?.filter(item => item.retailer === retailer).length || 0;
+                        const errorCount = fulfillments.errors?.filter(item => item.retailer === retailer).length || 0;
+                        const total = successCount + errorCount;
+                        const rate = total > 0 ? Math.round(successCount / total * 100) : 0;
+                        return `
+                        <div class="quick-stat">
+                            <div class="quick-stat-number">${total}</div>
+                            <div class="quick-stat-label">${retailer}</div>
+                            <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
+                                ${rate}% success
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
             ${fulfillments.success?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #28a745;">✅ Successful Fulfillments</h3>
+                <h3 style="margin-top: 0; color: #28a745;">Successful Fulfillments (${fulfillments.success.length})</h3>
                 ${fulfillments.success.map(item => `
                     <div class="success-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -439,15 +596,20 @@ class EmailTemplates {
             
             ${fulfillments.errors?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #dc3545;">❌ Errors</h3>
+                <h3 style="margin-top: 0; color: #dc3545;">Errors (${fulfillments.errors.length})</h3>
                 ${fulfillments.errors.map(item => `
                     <div class="error-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
             ` : ''}
+            
+            <div class="action-buttons">
+                <a href="mailto:admin@livegoodlogistics.com?subject=Fulfillment%20Alert%20Follow-up" class="action-button">Contact Support</a>
+                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
+            </div>
         </div>
         
         <div class="footer">
@@ -464,6 +626,12 @@ class EmailTemplates {
     const { orders, timestamp } = data;
     const totalOrders = (orders.success?.length || 0) + (orders.errors?.length || 0);
     const successRate = totalOrders > 0 ? Math.round((orders.success?.length || 0) / totalOrders * 100) : 0;
+    
+    // Get unique retailers for better organization
+    const retailers = [...new Set([
+      ...(orders.success?.map(item => item.retailer) || []),
+      ...(orders.errors?.map(item => item.retailer) || [])
+    ])];
     
     return `
 <!DOCTYPE html>
@@ -486,14 +654,14 @@ class EmailTemplates {
             <div class="header-content">
                 <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
                 <div class="header-text">
-                    <h1>🛒 Order Import Alert</h1>
-                    <div class="subtitle">Automated order synchronization update</div>
+                    <h1>Order Import Alert</h1>
+                    <div class="subtitle">${totalOrders > 0 ? `${totalOrders} order(s) processed` : 'No orders to import'}</div>
                 </div>
             </div>
         </div>
         
         <div class="content">
-            <div style="margin-bottom: 25px;">
+            <div class="execution-time">
                 <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
             </div>
             
@@ -514,7 +682,7 @@ class EmailTemplates {
             
             ${totalOrders > 0 ? `
             <div style="margin: 20px 0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;">
                     <span>Success Rate</span>
                     <span>${successRate}%</span>
                 </div>
@@ -524,13 +692,36 @@ class EmailTemplates {
             </div>
             ` : ''}
             
+            ${retailers.length > 0 ? `
+            <div class="quick-stats">
+                <h3>Retailers Processed</h3>
+                <div class="quick-stats-grid">
+                    ${retailers.map(retailer => {
+                        const successCount = orders.success?.filter(item => item.retailer === retailer).length || 0;
+                        const errorCount = orders.errors?.filter(item => item.retailer === retailer).length || 0;
+                        const total = successCount + errorCount;
+                        const rate = total > 0 ? Math.round(successCount / total * 100) : 0;
+                        return `
+                        <div class="quick-stat">
+                            <div class="quick-stat-number">${total}</div>
+                            <div class="quick-stat-label">${retailer}</div>
+                            <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
+                                ${rate}% success
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
             ${orders.success?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #28a745;">✅ Successful Imports</h3>
+                <h3 style="margin-top: 0; color: #28a745;">Successful Imports (${orders.success.length})</h3>
                 ${orders.success.map(item => `
                     <div class="success-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -538,15 +729,20 @@ class EmailTemplates {
             
             ${orders.errors?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #dc3545;">❌ Errors</h3>
+                <h3 style="margin-top: 0; color: #dc3545;">Errors (${orders.errors.length})</h3>
                 ${orders.errors.map(item => `
                     <div class="error-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
             ` : ''}
+            
+            <div class="action-buttons">
+                <a href="mailto:admin@livegoodlogistics.com?subject=Order%20Import%20Alert%20Follow-up" class="action-button">Contact Support</a>
+                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
+            </div>
         </div>
         
         <div class="footer">
@@ -563,6 +759,12 @@ class EmailTemplates {
     const { inventory, timestamp } = data;
     const totalInventory = (inventory.success?.length || 0) + (inventory.errors?.length || 0);
     const successRate = totalInventory > 0 ? Math.round((inventory.success?.length || 0) / totalInventory * 100) : 0;
+    
+    // Get unique retailers for better organization
+    const retailers = [...new Set([
+      ...(inventory.success?.map(item => item.retailer) || []),
+      ...(inventory.errors?.map(item => item.retailer) || [])
+    ])];
     
     return `
 <!DOCTYPE html>
@@ -585,14 +787,14 @@ class EmailTemplates {
             <div class="header-content">
                 <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
                 <div class="header-text">
-                    <h1>📦 Inventory Sync Alert</h1>
-                    <div class="subtitle">Automated inventory synchronization update</div>
+                    <h1>Inventory Sync Alert</h1>
+                    <div class="subtitle">${totalInventory > 0 ? `${totalInventory} SKU(s) updated` : 'No inventory updates'}</div>
                 </div>
             </div>
         </div>
         
         <div class="content">
-            <div style="margin-bottom: 25px;">
+            <div class="execution-time">
                 <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
             </div>
             
@@ -613,7 +815,7 @@ class EmailTemplates {
             
             ${totalInventory > 0 ? `
             <div style="margin: 20px 0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;">
                     <span>Success Rate</span>
                     <span>${successRate}%</span>
                 </div>
@@ -623,13 +825,36 @@ class EmailTemplates {
             </div>
             ` : ''}
             
+            ${retailers.length > 0 ? `
+            <div class="quick-stats">
+                <h3>Retailers Processed</h3>
+                <div class="quick-stats-grid">
+                    ${retailers.map(retailer => {
+                        const successCount = inventory.success?.filter(item => item.retailer === retailer).length || 0;
+                        const errorCount = inventory.errors?.filter(item => item.retailer === retailer).length || 0;
+                        const total = successCount + errorCount;
+                        const rate = total > 0 ? Math.round(successCount / total * 100) : 0;
+                        return `
+                        <div class="quick-stat">
+                            <div class="quick-stat-number">${total}</div>
+                            <div class="quick-stat-label">${retailer}</div>
+                            <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
+                                ${rate}% success
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
             ${inventory.success?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #28a745;">✅ Successful Updates</h3>
+                <h3 style="margin-top: 0; color: #28a745;">Successful Updates (${inventory.success.length})</h3>
                 ${inventory.success.map(item => `
                     <div class="success-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -637,15 +862,20 @@ class EmailTemplates {
             
             ${inventory.errors?.length > 0 ? `
             <div class="section">
-                <h3 style="margin-top: 0; color: #dc3545;">❌ Errors</h3>
+                <h3 style="margin-top: 0; color: #dc3545;">Errors (${inventory.errors.length})</h3>
                 ${inventory.errors.map(item => `
                     <div class="error-item">
                         <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small>Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
+                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
                     </div>
                 `).join('')}
             </div>
             ` : ''}
+            
+            <div class="action-buttons">
+                <a href="mailto:admin@livegoodlogistics.com?subject=Inventory%20Sync%20Alert%20Follow-up" class="action-button">Contact Support</a>
+                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
+            </div>
         </div>
         
         <div class="footer">
@@ -673,6 +903,7 @@ class EmailTemplates {
         .header { 
           background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); 
         }
+        .stat-number { color: #dc3545; }
     </style>
 </head>
 <body>
@@ -681,43 +912,58 @@ class EmailTemplates {
             <div class="header-content">
                 <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
                 <div class="header-text">
-                    <h1>🚨 Shopify Sync System Error</h1>
-                    <div class="subtitle">Critical system error detected</div>
+                    <h1>System Error Alert</h1>
+                    <div class="subtitle">Critical error detected in ${context.operation || 'system'}</div>
                 </div>
             </div>
         </div>
         
         <div class="content">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Time</div>
-                    <div class="info-value">${new Date(timestamp).toLocaleString()}</div>
+            <div class="execution-time">
+                <strong>Error Time:</strong> ${new Date(timestamp).toLocaleString()}
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">${context.retailer || 'Unknown'}</div>
+                    <div class="stat-label">Retailer</div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">Retailer</div>
-                    <div class="info-value">${context.retailer || 'Unknown'}</div>
+                <div class="stat-card">
+                    <div class="stat-number">${context.operation || 'Unknown'}</div>
+                    <div class="stat-label">Operation</div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">Operation</div>
-                    <div class="info-value">${context.operation || 'Unknown'}</div>
+                <div class="stat-card">
+                    <div class="stat-number">Error</div>
+                    <div class="stat-label">Status</div>
                 </div>
             </div>
             
             <div class="error-details">
                 <h3 style="margin-top: 0; color: #721c24;">Error Details</h3>
-                <p style="margin: 0; font-weight: 500; font-size: 16px;">${error.message}</p>
+                <div class="error-item">
+                    <strong>Message:</strong> ${error.message}
+                </div>
             </div>
             
             ${error.stack ? `
-            <div class="context">
+            <div class="section">
                 <h3 style="margin-top: 0; color: #495057;">Stack Trace</h3>
-                <pre>${error.stack}</pre>
+                <div class="context">
+                    <pre>${error.stack}</pre>
+                </div>
             </div>
             ` : ''}
             
-            <div class="context">
+            <div class="section">
                 <h3 style="margin-top: 0; color: #495057;">Additional Context</h3>
-                <pre>${JSON.stringify(context, null, 2)}</pre>
+                <div class="context">
+                    <pre>${JSON.stringify(context, null, 2)}</pre>
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="mailto:admin@livegoodlogistics.com?subject=System%20Error%20Follow-up" class="action-button">Contact Support</a>
+                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
             </div>
         </div>
         
@@ -760,24 +1006,45 @@ class EmailTemplates {
             <div class="header-content">
                 <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
                 <div class="header-text">
-                    <h1>📊 Shopify Sync System Summary</h1>
-                    <div class="subtitle">Automated synchronization report</div>
+                    <h1>Shopify Sync System Summary</h1>
+                    <div class="subtitle">${summary.status === 'success' ? 'All operations completed' : 'Some operations failed'}</div>
                 </div>
             </div>
         </div>
         
         <div class="content">
-            <div class="overview" style="background-color: #f8f9fa; border-radius: 10px; padding: 25px; margin-bottom: 30px;">
+            <div class="execution-time">
+                <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
+            </div>
+            <div class="quick-stats">
+                <h3>Quick Stats</h3>
+                <div class="quick-stats-grid">
+                    <div class="quick-stat">
+                        <div class="quick-stat-number">${summary.results?.fulfillments?.total || 0}</div>
+                        <div class="quick-stat-label">Fulfillments</div>
+                        ${totalFulfillments > 0 ? `<div style="font-size: 11px; color: #6c757d; margin-top: 5px;">${fulfillmentRate}% success</div>` : ''}
+                    </div>
+                    <div class="quick-stat">
+                        <div class="quick-stat-number">${summary.results?.orders?.total || 0}</div>
+                        <div class="quick-stat-label">Orders</div>
+                        ${totalOrders > 0 ? `<div style="font-size: 11px; color: #6c757d; margin-top: 5px;">${orderRate}% success</div>` : ''}
+                    </div>
+                    <div class="quick-stat">
+                        <div class="quick-stat-number">${summary.results?.inventory?.total || 0}</div>
+                        <div class="quick-stat-label">SKUs Updated</div>
+                        ${totalInventory > 0 ? `<div style="font-size: 11px; color: #6c757d; margin-top: 5px;">${inventoryRate}% success</div>` : ''}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 25px; margin-bottom: 30px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
                     <div>
-                        <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
+                        <strong>Duration:</strong> ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds
                     </div>
                     <span class="status-badge status-${summary.status === 'success' ? 'success' : 'error'}">
                         ${summary.status.toUpperCase()}
                     </span>
-                </div>
-                <div style="color: #6c757d; font-size: 14px; margin-bottom: 10px;">
-                    <strong>Duration:</strong> ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds
                 </div>
                 <div class="retailers-list">
                     <strong>Retailers:</strong>
@@ -830,8 +1097,13 @@ class EmailTemplates {
             ${retailerSections}
             
             <div class="details">
-                <h3>📋 Full Summary Details</h3>
+                <h3>Full Summary Details</h3>
                 <pre>${JSON.stringify(summary, null, 2)}</pre>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="mailto:admin@livegoodlogistics.com?subject=Sync%20Summary%20Follow-up" class="action-button">Contact Support</a>
+                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
             </div>
         </div>
         
@@ -921,7 +1193,7 @@ class EmailTemplates {
             
             ${totalSuccess > 0 ? `
             <div class="retailer-group">
-                <div class="retailer-header">✅ Successful Operations (${totalSuccess})</div>
+                <div class="retailer-header">Successful Operations (${totalSuccess})</div>
                 ${data.success.map(item => `
                     <div class="success-item">
                         <strong>${item.type.toUpperCase()}:</strong> ${item.message}
@@ -932,7 +1204,7 @@ class EmailTemplates {
             
             ${totalErrors > 0 ? `
             <div class="retailer-group">
-                <div class="retailer-header">❌ Errors (${totalErrors})</div>
+                <div class="retailer-header">Errors (${totalErrors})</div>
                 ${data.errors.map(item => `
                     <div class="error-item">
                         <strong>${item.type.toUpperCase()}:</strong> ${item.message}

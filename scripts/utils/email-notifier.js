@@ -32,7 +32,11 @@ class EmailNotifier {
     this.retryDelayMs = config.emailNotifications?.retryDelayMs || 5000;
     this.exponentialBackoff = config.emailNotifications?.exponentialBackoff !== false;
     this.includeDebugInfo = config.emailNotifications?.includeDebugInfo || false;
-    this.emailSubjectPrefix = config.emailNotifications?.subjectPrefix || '[Shopify Sync]';
+    this.emailSubjectPrefix = config.emailNotifications?.subjectPrefix || '';
+    
+    // GitHub Actions specific settings
+    this.githubActionsMode = config.emailNotifications?.githubActionsMode || false;
+    this.enhancedTemplates = config.emailNotifications?.enhancedTemplates || false;
     
     // Activity tracking enhancements
     this.activityTracking = config.emailNotifications?.activityTracking !== false;
@@ -113,7 +117,28 @@ class EmailNotifier {
     const timeSinceLastEmail = now - lastTime;
     const rateLimitMs = this.rateLimitMinutes * 60 * 1000;
     
-    // Check if we're in quiet hours (except for errors)
+    // For GitHub Actions mode, we want to send emails immediately when there's activity
+    // Only apply rate limiting for error emails to prevent spam
+    if (this.isGitHubActionsEnvironment()) {
+      if (type === 'error') {
+        // Apply rate limiting only for errors to prevent spam
+        let effectiveRateLimit = rateLimitMs;
+        if (this.exponentialBackoff) {
+          const errorCount = this.emailCounts[key] || 0;
+          effectiveRateLimit = Math.min(rateLimitMs * Math.pow(2, errorCount), 24 * 60 * 60 * 1000); // Max 24 hours
+        }
+        
+        if (timeSinceLastEmail < effectiveRateLimit) {
+          const minutesAgo = Math.round(timeSinceLastEmail / 1000 / 60);
+          console.log(`📧 Rate limited: ${type} email for ${operation} (last sent ${minutesAgo} minutes ago, limit: ${Math.round(effectiveRateLimit / 1000 / 60)} minutes)`);
+          return false;
+        }
+      }
+      // For non-error emails in GitHub Actions, always allow sending if there's activity
+      return true;
+    }
+    
+    // For non-GitHub Actions environments, apply normal rate limiting
     if (type !== 'error' && this.isInQuietHours()) {
       console.log(`📧 Skipping ${type} email during quiet hours (${this.quietHours.start}:00 - ${this.quietHours.end}:00)`);
       return false;
@@ -198,22 +223,35 @@ class EmailNotifier {
     if (!results) return false;
     
     let totalActivity = 0;
+    let hasErrors = false;
     
     // Check fulfillments
     if (results.fulfillments) {
-      totalActivity += (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+      const fulfillmentActivity = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+      totalActivity += fulfillmentActivity;
+      if (results.fulfillments.errors?.length > 0) hasErrors = true;
     }
     
     // Check orders
     if (results.orders) {
-      totalActivity += (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+      const orderActivity = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+      totalActivity += orderActivity;
+      if (results.orders.errors?.length > 0) hasErrors = true;
     }
     
     // Check inventory
     if (results.inventory) {
-      totalActivity += (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+      const inventoryActivity = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+      totalActivity += inventoryActivity;
+      if (results.inventory.errors?.length > 0) hasErrors = true;
     }
     
+    // In GitHub Actions mode, always send emails if there's any activity or errors
+    if (this.isGitHubActionsEnvironment()) {
+      return totalActivity > 0 || hasErrors;
+    }
+    
+    // For non-GitHub Actions environments, use the threshold
     return totalActivity >= this.minActivityThreshold;
   }
 
@@ -252,10 +290,10 @@ class EmailNotifier {
     const emailType = isError ? 'error' : 'info';
     
     const data = new URLSearchParams({
-      from: this.fromEmail,
+      from: `LGL Admin <${this.fromEmail}>`,
       to: this.toEmail,
       'h:Reply-To': this.fromEmail,
-      subject: `${this.emailSubjectPrefix} ${isError ? '[ERROR]' : '[INFO]'} ${subject}`,
+      subject: `${this.emailSubjectPrefix}${subject}`,
       text: body
     });
 
@@ -330,7 +368,7 @@ class EmailNotifier {
       return;
     }
 
-    const subject = `System Error - ${context.retailer || 'Unknown Retailer'}`;
+    const subject = `Error: ${context.retailer || 'System'} - ${context.operation || 'Unknown'}`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -357,7 +395,7 @@ ${JSON.stringify(context, null, 2)}
     });
 
     try {
-      await this.sendEmailWithRetry(subject, textBody, true, htmlBody, context.operation || 'error');
+      await this.sendEmailWithGitHubContext(subject, textBody, true, htmlBody, context.operation || 'error');
     } catch (emailError) {
       console.error('📧 Failed to send error notification email:', emailError);
     }
@@ -375,7 +413,7 @@ ${JSON.stringify(context, null, 2)}
 
     this.trackActivity('fulfillments', results);
 
-    const subject = `Fulfillment Alert - ${totalFulfillments} processed`;
+    const subject = `Fulfillment: ${totalFulfillments} orders processed`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -396,7 +434,7 @@ ${JSON.stringify(results.fulfillments, null, 2)}
     });
 
     try {
-      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'fulfillments');
+      await this.sendEmailWithGitHubContext(subject, textBody, false, htmlBody, 'fulfillments');
     } catch (emailError) {
       console.error('📧 Failed to send fulfillment alert email:', emailError);
     }
@@ -414,7 +452,7 @@ ${JSON.stringify(results.fulfillments, null, 2)}
 
     this.trackActivity('orders', results);
 
-    const subject = `Order Import Alert - ${totalOrders} processed`;
+    const subject = `Orders: ${totalOrders} imported`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -435,7 +473,7 @@ ${JSON.stringify(results.orders, null, 2)}
     });
 
     try {
-      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'orders');
+      await this.sendEmailWithGitHubContext(subject, textBody, false, htmlBody, 'orders');
     } catch (emailError) {
       console.error('📧 Failed to send order alert email:', emailError);
     }
@@ -453,7 +491,7 @@ ${JSON.stringify(results.orders, null, 2)}
 
     this.trackActivity('inventory', results);
 
-    const subject = `Inventory Sync Alert - ${totalInventory} SKUs updated`;
+    const subject = `Inventory: ${totalInventory} SKUs updated`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -474,7 +512,7 @@ ${JSON.stringify(results.inventory, null, 2)}
     });
 
     try {
-      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'inventory');
+      await this.sendEmailWithGitHubContext(subject, textBody, false, htmlBody, 'inventory');
     } catch (emailError) {
       console.error('📧 Failed to send inventory alert email:', emailError);
     }
@@ -493,7 +531,7 @@ ${JSON.stringify(results.inventory, null, 2)}
 
     this.trackActivity('summary', summary.results);
 
-    const subject = `Sync Summary - ${new Date().toLocaleDateString()}`;
+    const subject = `Summary: ${new Date().toLocaleDateString()}`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -516,7 +554,7 @@ ${JSON.stringify(summary, null, 2)}
     });
 
     try {
-      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'summary');
+      await this.sendEmailWithGitHubContext(subject, textBody, false, htmlBody, 'summary');
     } catch (emailError) {
       console.error('📧 Failed to send summary notification email:', emailError);
     }
@@ -550,6 +588,43 @@ ${JSON.stringify(summary, null, 2)}
     this.activityHistory = [];
     this.saveEmailState();
     console.log('📧 Email state reset successfully');
+  }
+
+  // GitHub Actions specific method
+  isGitHubActionsEnvironment() {
+    return process.env.GITHUB_ACTIONS === 'true' || this.githubActionsMode;
+  }
+
+  // Enhanced subject line for GitHub Actions
+  getEnhancedSubject(subject, operation = 'general') {
+    if (this.isGitHubActionsEnvironment()) {
+      const runId = process.env.GITHUB_RUN_ID || 'unknown';
+      const runNumber = process.env.GITHUB_RUN_NUMBER || 'unknown';
+      return `${this.emailSubjectPrefix}[Run #${runNumber}] ${subject}`;
+    }
+    return `${this.emailSubjectPrefix}${subject}`;
+  }
+
+  // Enhanced email sending with GitHub Actions context
+  async sendEmailWithGitHubContext(subject, body, isError = false, htmlBody = null, operation = 'general') {
+    const enhancedSubject = this.getEnhancedSubject(subject, operation);
+    
+    // Add GitHub Actions context to email body if available
+    let enhancedBody = body;
+    if (this.isGitHubActionsEnvironment() && this.includeDebugInfo) {
+      const githubContext = {
+        runId: process.env.GITHUB_RUN_ID,
+        runNumber: process.env.GITHUB_RUN_NUMBER,
+        workflow: process.env.GITHUB_WORKFLOW,
+        repository: process.env.GITHUB_REPOSITORY,
+        actor: process.env.GITHUB_ACTOR,
+        eventName: process.env.GITHUB_EVENT_NAME
+      };
+      
+      enhancedBody += `\n\nGitHub Actions Context:\n${JSON.stringify(githubContext, null, 2)}`;
+    }
+    
+    return this.sendEmailWithRetry(enhancedSubject, enhancedBody, isError, htmlBody, operation);
   }
 }
 
