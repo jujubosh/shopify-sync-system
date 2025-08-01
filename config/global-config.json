@@ -19,8 +19,25 @@
   },
   "emailNotifications": {
     "enabled": true,
+    "fromEmail": "admin@livegoodlogistics.com",
     "toEmail": "justin@livegoodlogistics.com",
     "sendErrors": true,
-    "sendSummaries": true
+    "sendSummaries": true,
+    "sendFulfillmentAlerts": true,
+    "sendOrderAlerts": true,
+    "sendInventoryAlerts": true,
+    "minActivityThreshold": 1,
+    "rateLimitMinutes": 30,
+    "quietHours": {
+      "start": 22,
+      "end": 7
+    },
+    "maxRetries": 3,
+    "retryDelayMs": 5000,
+    "exponentialBackoff": true,
+    "includeDebugInfo": false,
+    "subjectPrefix": "[Shopify Sync]",
+    "activityTracking": true,
+    "maxActivityHistory": 100
   }
 } 

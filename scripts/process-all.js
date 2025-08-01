@@ -128,17 +128,28 @@ async function main() {
     switch (operation) {
       case 'orders':
         summary.results.orders = await processOrders(retailers, config);
+        // Send order-specific alert
+        await emailNotifier.sendOrderAlert(summary.results);
         break;
       case 'fulfillments':
         summary.results.fulfillments = await processFulfillments(retailers, config);
+        // Send fulfillment-specific alert
+        await emailNotifier.sendFulfillmentAlert(summary.results);
         break;
       case 'inventory':
         summary.results.inventory = await processInventorySync(retailers, config);
+        // Send inventory-specific alert
+        await emailNotifier.sendInventoryAlert(summary.results);
         break;
       case 'all':
         summary.results.fulfillments = await processFulfillments(retailers, config);
         summary.results.orders = await processOrders(retailers, config);
         summary.results.inventory = await processInventorySync(retailers, config);
+        
+        // Send individual alerts for each operation
+        await emailNotifier.sendFulfillmentAlert(summary.results);
+        await emailNotifier.sendOrderAlert(summary.results);
+        await emailNotifier.sendInventoryAlert(summary.results);
         break;
       default:
         console.error('Invalid operation. Use: orders, fulfillments, inventory, or all');
@@ -151,8 +162,8 @@ async function main() {
     
     console.log('Processing completed successfully');
     
-    // Send summary notification if enabled
-    if (config.emailNotifications?.sendSummaries) {
+    // Send summary notification if enabled (only for 'all' operation)
+    if (operation === 'all' && config.emailNotifications?.sendSummaries) {
       await emailNotifier.sendSummaryNotification(summary);
     }
     

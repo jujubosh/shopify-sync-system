@@ -1,4 +1,7 @@
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const { EmailTemplates } = require('./email-templates');
 
 class EmailNotifier {
   constructor(config) {
@@ -8,29 +11,270 @@ class EmailNotifier {
       : (process.env[config.mailgun?.apiKey] || process.env.MAILGUN_API_KEY);
     this.domain = config.mailgun?.domain || process.env.MAILGUN_DOMAIN;
     this.baseUrl = 'https://api.mailgun.net';
-    this.fromEmail = 'shopify-sync@email.livegoodlogistics.com';
+    this.fromEmail = config.emailNotifications?.fromEmail || 'admin@livegoodlogistics.com';
     this.toEmail = config.emailNotifications?.toEmail || 'justin@livegoodlogistics.com';
     this.enabled = config.emailNotifications?.enabled !== false;
     
-    // Logo URL
-    this.logoUrl = 'https://livegoodlogistics.com/cdn/shop/files/Live-Good-Word_Green_Final.png';
+    // Enhanced email settings with better defaults
+    this.sendErrors = config.emailNotifications?.sendErrors !== false;
+    this.sendSummaries = config.emailNotifications?.sendSummaries !== false;
+    this.sendFulfillmentAlerts = config.emailNotifications?.sendFulfillmentAlerts !== false;
+    this.sendOrderAlerts = config.emailNotifications?.sendOrderAlerts !== false;
+    this.sendInventoryAlerts = config.emailNotifications?.sendInventoryAlerts !== false;
+    
+    // Enhanced rate limiting settings
+    this.minActivityThreshold = config.emailNotifications?.minActivityThreshold || 1;
+    this.rateLimitMinutes = config.emailNotifications?.rateLimitMinutes || 30;
+    this.quietHours = config.emailNotifications?.quietHours || { start: 22, end: 7 };
+    
+    // New enhanced settings
+    this.maxRetries = config.emailNotifications?.maxRetries || 3;
+    this.retryDelayMs = config.emailNotifications?.retryDelayMs || 5000;
+    this.exponentialBackoff = config.emailNotifications?.exponentialBackoff !== false;
+    this.includeDebugInfo = config.emailNotifications?.includeDebugInfo || false;
+    this.emailSubjectPrefix = config.emailNotifications?.subjectPrefix || '[Shopify Sync]';
+    
+    // Activity tracking enhancements
+    this.activityTracking = config.emailNotifications?.activityTracking !== false;
+    this.activityHistory = [];
+    this.maxActivityHistory = config.emailNotifications?.maxActivityHistory || 100;
+    
+    // Initialize email templates
+    this.templates = new EmailTemplates();
+    
+    // Enhanced state tracking for rate limiting
+    this.lastEmailTimes = {};
+    this.emailCounts = {};
+    this.stateFile = path.join(__dirname, '../../logs/email-state.json');
+    this.loadEmailState();
+    
+    // Validate configuration
+    this.validateConfiguration();
   }
 
-  async sendEmail(subject, body, isError = false, htmlBody = null) {
+  validateConfiguration() {
+    if (!this.apiKey) {
+      console.warn('⚠️  Email notifications may fail: MAILGUN_API_KEY not configured');
+    }
+    if (!this.domain) {
+      console.warn('⚠️  Email notifications may fail: MAILGUN_DOMAIN not configured');
+    }
     if (!this.enabled) {
-      console.log(`Email notification disabled. Would send: ${subject}`);
+      console.log('📧 Email notifications are disabled');
+    }
+  }
+
+  loadEmailState() {
+    try {
+      if (fs.existsSync(this.stateFile)) {
+        const stateData = JSON.parse(fs.readFileSync(this.stateFile, 'utf8'));
+        this.lastEmailTimes = stateData.lastEmailTimes || {};
+        this.emailCounts = stateData.emailCounts || {};
+        this.activityHistory = stateData.activityHistory || [];
+      }
+    } catch (error) {
+      console.log('Could not load email state, starting fresh:', error.message);
+      this.lastEmailTimes = {};
+      this.emailCounts = {};
+      this.activityHistory = [];
+    }
+  }
+
+  saveEmailState() {
+    try {
+      const dir = path.dirname(this.stateFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      const stateData = {
+        lastEmailTimes: this.lastEmailTimes,
+        emailCounts: this.emailCounts,
+        activityHistory: this.activityHistory.slice(-this.maxActivityHistory),
+        lastUpdated: new Date().toISOString()
+      };
+      
+      fs.writeFileSync(this.stateFile, JSON.stringify(stateData, null, 2));
+    } catch (error) {
+      console.error('Failed to save email state:', error);
+    }
+  }
+
+  isInQuietHours() {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= this.quietHours.start || hour < this.quietHours.end;
+  }
+
+  canSendEmail(type, operation = 'general') {
+    const key = `${type}_${operation}`;
+    const now = Date.now();
+    const lastTime = this.lastEmailTimes[key] || 0;
+    const timeSinceLastEmail = now - lastTime;
+    const rateLimitMs = this.rateLimitMinutes * 60 * 1000;
+    
+    // Check if we're in quiet hours (except for errors)
+    if (type !== 'error' && this.isInQuietHours()) {
+      console.log(`📧 Skipping ${type} email during quiet hours (${this.quietHours.start}:00 - ${this.quietHours.end}:00)`);
+      return false;
+    }
+    
+    // Enhanced rate limiting with exponential backoff for errors
+    let effectiveRateLimit = rateLimitMs;
+    if (type === 'error' && this.exponentialBackoff) {
+      const errorCount = this.emailCounts[key] || 0;
+      effectiveRateLimit = Math.min(rateLimitMs * Math.pow(2, errorCount), 24 * 60 * 60 * 1000); // Max 24 hours
+    }
+    
+    if (timeSinceLastEmail < effectiveRateLimit) {
+      const minutesAgo = Math.round(timeSinceLastEmail / 1000 / 60);
+      console.log(`📧 Rate limited: ${type} email for ${operation} (last sent ${minutesAgo} minutes ago, limit: ${Math.round(effectiveRateLimit / 1000 / 60)} minutes)`);
+      return false;
+    }
+    
+    return true;
+  }
+
+  updateEmailState(type, operation = 'general') {
+    const key = `${type}_${operation}`;
+    this.lastEmailTimes[key] = Date.now();
+    this.emailCounts[key] = (this.emailCounts[key] || 0) + 1;
+    this.saveEmailState();
+  }
+
+  trackActivity(operation, results) {
+    if (!this.activityTracking) return;
+    
+    const activity = {
+      timestamp: new Date().toISOString(),
+      operation,
+      results: this.summarizeResults(results),
+      success: this.hasSignificantActivity(results)
+    };
+    
+    this.activityHistory.push(activity);
+    
+    // Keep only the last N activities
+    if (this.activityHistory.length > this.maxActivityHistory) {
+      this.activityHistory = this.activityHistory.slice(-this.maxActivityHistory);
+    }
+    
+    this.saveEmailState();
+  }
+
+  summarizeResults(results) {
+    if (!results) return {};
+    
+    const summary = {};
+    
+    if (results.fulfillments) {
+      summary.fulfillments = {
+        success: results.fulfillments.success?.length || 0,
+        errors: results.fulfillments.errors?.length || 0,
+        total: (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0)
+      };
+    }
+    
+    if (results.orders) {
+      summary.orders = {
+        success: results.orders.success?.length || 0,
+        errors: results.orders.errors?.length || 0,
+        total: (results.orders.success?.length || 0) + (results.orders.errors?.length || 0)
+      };
+    }
+    
+    if (results.inventory) {
+      summary.inventory = {
+        success: results.inventory.success?.length || 0,
+        errors: results.inventory.errors?.length || 0,
+        total: (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0)
+      };
+    }
+    
+    return summary;
+  }
+
+  hasSignificantActivity(results) {
+    if (!results) return false;
+    
+    let totalActivity = 0;
+    
+    // Check fulfillments
+    if (results.fulfillments) {
+      totalActivity += (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+    }
+    
+    // Check orders
+    if (results.orders) {
+      totalActivity += (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+    }
+    
+    // Check inventory
+    if (results.inventory) {
+      totalActivity += (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+    }
+    
+    return totalActivity >= this.minActivityThreshold;
+  }
+
+  async sendEmailWithRetry(subject, body, isError = false, htmlBody = null, operation = 'general', retryCount = 0) {
+    if (!this.enabled) {
+      console.log(`📧 Email notification disabled. Would send: ${subject}`);
       return;
     }
 
+    const emailType = isError ? 'error' : 'info';
+    
+    if (!this.canSendEmail(emailType, operation)) {
+      return;
+    }
+
+    try {
+      await this.sendEmail(subject, body, isError, htmlBody, operation);
+      console.log(`📧 Email sent successfully: ${subject}`);
+    } catch (error) {
+      console.error(`📧 Failed to send email (attempt ${retryCount + 1}/${this.maxRetries + 1}):`, error.message);
+      
+      if (retryCount < this.maxRetries) {
+        const delay = this.exponentialBackoff ? this.retryDelayMs * Math.pow(2, retryCount) : this.retryDelayMs;
+        console.log(`📧 Retrying in ${delay}ms...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.sendEmailWithRetry(subject, body, isError, htmlBody, operation, retryCount + 1);
+      } else {
+        console.error(`📧 Max retries exceeded for email: ${subject}`);
+        throw error;
+      }
+    }
+  }
+
+  async sendEmail(subject, body, isError = false, htmlBody = null, operation = 'general') {
+    const emailType = isError ? 'error' : 'info';
+    
     const data = new URLSearchParams({
       from: this.fromEmail,
       to: this.toEmail,
-      subject: isError ? `[ERROR] ${subject}` : `[INFO] ${subject}`,
+      'h:Reply-To': this.fromEmail,
+      subject: `${this.emailSubjectPrefix} ${isError ? '[ERROR]' : '[INFO]'} ${subject}`,
       text: body
     });
 
     if (htmlBody) {
       data.append('html', htmlBody);
+    }
+
+    // Add debug info if enabled
+    if (this.includeDebugInfo) {
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        operation,
+        emailType,
+        rateLimitInfo: {
+          lastEmailTime: this.lastEmailTimes[`${emailType}_${operation}`],
+          emailCount: this.emailCounts[`${emailType}_${operation}`] || 0
+        }
+      };
+      data.append('h:X-Debug-Info', JSON.stringify(debugInfo));
     }
 
     const options = {
@@ -53,18 +297,26 @@ class EmailNotifier {
         });
         res.on('end', () => {
           if (res.statusCode === 200) {
-            console.log(`Email sent successfully: ${subject}`);
+            this.updateEmailState(emailType, operation);
             resolve();
           } else {
-            console.error(`Failed to send email: ${res.statusCode} - ${responseData}`);
-            reject(new Error(`Email send failed: ${res.statusCode}`));
+            const error = new Error(`Email send failed: ${res.statusCode} - ${responseData}`);
+            error.statusCode = res.statusCode;
+            error.responseData = responseData;
+            reject(error);
           }
         });
       });
 
       req.on('error', (error) => {
-        console.error('Email request error:', error);
+        console.error('📧 Email request error:', error);
         reject(error);
+      });
+
+      // Add timeout
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('Email request timeout'));
       });
 
       req.write(data.toString());
@@ -73,7 +325,12 @@ class EmailNotifier {
   }
 
   async sendErrorNotification(error, context = {}) {
-    const subject = `Shopify Sync Error - ${context.retailer || 'Unknown Retailer'}`;
+    if (!this.sendErrors) {
+      console.log('📧 Error notifications disabled');
+      return;
+    }
+
+    const subject = `System Error - ${context.retailer || 'Unknown Retailer'}`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -93,169 +350,150 @@ Additional Context:
 ${JSON.stringify(context, null, 2)}
     `.trim();
 
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
-        .container { max-width: 700px; margin: 0 auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 25px; text-align: center; }
-        .header-content { display: flex; align-items: center; justify-content: center; gap: 15px; }
-        .logo { width: 120px; height: auto; }
-        .header-text { text-align: left; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
-        .header .subtitle { margin-top: 5px; opacity: 0.9; font-size: 14px; }
-        .content { padding: 30px; }
-        .error-details { background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 20px; margin: 20px 0; }
-        .context { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-top: 20px; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
-        .info-item { background-color: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff; }
-        .info-label { font-size: 12px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
-        .info-value { font-weight: 600; color: #495057; }
-        pre { white-space: pre-wrap; word-wrap: break-word; background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; font-size: 12px; overflow-x: auto; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
-                <div class="header-text">
-                    <h1>🚨 Shopify Sync System Error</h1>
-                    <div class="subtitle">Critical system error detected</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="content">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Time</div>
-                    <div class="info-value">${new Date(timestamp).toLocaleString()}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Retailer</div>
-                    <div class="info-value">${context.retailer || 'Unknown'}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Operation</div>
-                    <div class="info-value">${context.operation || 'Unknown'}</div>
-                </div>
-            </div>
-            
-            <div class="error-details">
-                <h3 style="margin-top: 0; color: #721c24;">Error Details</h3>
-                <p style="margin: 0; font-weight: 500;">${error.message}</p>
-            </div>
-            
-            <div class="context">
-                <h3 style="margin-top: 0; color: #495057;">Additional Context</h3>
-                <pre>${JSON.stringify(context, null, 2)}</pre>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
-    `.trim();
+    const htmlBody = this.templates.generateErrorTemplate({
+      error,
+      context,
+      timestamp
+    });
 
     try {
-      await this.sendEmail(subject, textBody, true, htmlBody);
+      await this.sendEmailWithRetry(subject, textBody, true, htmlBody, context.operation || 'error');
     } catch (emailError) {
-      console.error('Failed to send error notification email:', emailError);
+      console.error('📧 Failed to send error notification email:', emailError);
     }
   }
 
-  generateRetailerSections(results) {
-    if (!results) return '';
-    
-    let sections = '';
-    
-    // Group results by retailer
-    const retailerData = {};
-    
-    // Process fulfillments
-    if (results.fulfillments) {
-      results.fulfillments.success?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].success.push({ type: 'fulfillment', message: item.message });
-      });
-      results.fulfillments.errors?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].errors.push({ type: 'fulfillment', message: item.message });
-      });
+  async sendFulfillmentAlert(results) {
+    if (!this.sendFulfillmentAlerts || !results?.fulfillments) {
+      return;
     }
-    
-    // Process orders
-    if (results.orders) {
-      results.orders.success?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].success.push({ type: 'order', message: item.message });
-      });
-      results.orders.errors?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].errors.push({ type: 'order', message: item.message });
-      });
+
+    const totalFulfillments = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+    if (totalFulfillments === 0) {
+      return;
     }
+
+    this.trackActivity('fulfillments', results);
+
+    const subject = `Fulfillment Alert - ${totalFulfillments} processed`;
+    const timestamp = new Date().toISOString();
     
-    // Process inventory
-    if (results.inventory) {
-      results.inventory.success?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].success.push({ type: 'inventory', message: item.message });
-      });
-      results.inventory.errors?.forEach(item => {
-        if (!retailerData[item.retailer]) retailerData[item.retailer] = { success: [], errors: [] };
-        retailerData[item.retailer].errors.push({ type: 'inventory', message: item.message });
-      });
-    }
-    
-    // Generate sections for each retailer
-    Object.keys(retailerData).forEach(retailer => {
-      const data = retailerData[retailer];
-      const totalSuccess = data.success.length;
-      const totalErrors = data.errors.length;
-      
-      if (totalSuccess === 0 && totalErrors === 0) return;
-      
-      sections += `
-        <div class="section">
-            <div class="section-header">
-                <span class="section-icon">🏪</span>
-                <h3 class="section-title">${retailer}</h3>
-                <span class="section-count">${totalSuccess + totalErrors}</span>
-            </div>
-            
-            ${totalSuccess > 0 ? `
-            <div class="retailer-group">
-                <div class="retailer-header">✅ Successful Operations (${totalSuccess})</div>
-                ${data.success.map(item => `
-                    <div class="success-item">
-                        <strong>${item.type.toUpperCase()}:</strong> ${item.message}
-                    </div>
-                `).join('')}
-            </div>
-            ` : ''}
-            
-            ${totalErrors > 0 ? `
-            <div class="retailer-group">
-                <div class="retailer-header">❌ Errors (${totalErrors})</div>
-                ${data.errors.map(item => `
-                    <div class="error-item">
-                        <strong>${item.type.toUpperCase()}:</strong> ${item.message}
-                    </div>
-                `).join('')}
-            </div>
-            ` : ''}
-        </div>
-      `;
+    const textBody = `
+Fulfillment Processing Alert
+
+Time: ${timestamp}
+Total Fulfillments: ${totalFulfillments}
+Successful: ${results.fulfillments.success?.length || 0}
+Errors: ${results.fulfillments.errors?.length || 0}
+
+Details:
+${JSON.stringify(results.fulfillments, null, 2)}
+    `.trim();
+
+    const htmlBody = this.templates.generateFulfillmentTemplate({
+      fulfillments: results.fulfillments,
+      timestamp
     });
+
+    try {
+      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'fulfillments');
+    } catch (emailError) {
+      console.error('📧 Failed to send fulfillment alert email:', emailError);
+    }
+  }
+
+  async sendOrderAlert(results) {
+    if (!this.sendOrderAlerts || !results?.orders) {
+      return;
+    }
+
+    const totalOrders = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+    if (totalOrders === 0) {
+      return;
+    }
+
+    this.trackActivity('orders', results);
+
+    const subject = `Order Import Alert - ${totalOrders} processed`;
+    const timestamp = new Date().toISOString();
     
-    return sections;
+    const textBody = `
+Order Import Alert
+
+Time: ${timestamp}
+Total Orders: ${totalOrders}
+Successful: ${results.orders.success?.length || 0}
+Errors: ${results.orders.errors?.length || 0}
+
+Details:
+${JSON.stringify(results.orders, null, 2)}
+    `.trim();
+
+    const htmlBody = this.templates.generateOrderTemplate({
+      orders: results.orders,
+      timestamp
+    });
+
+    try {
+      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'orders');
+    } catch (emailError) {
+      console.error('📧 Failed to send order alert email:', emailError);
+    }
+  }
+
+  async sendInventoryAlert(results) {
+    if (!this.sendInventoryAlerts || !results?.inventory) {
+      return;
+    }
+
+    const totalInventory = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+    if (totalInventory === 0) {
+      return;
+    }
+
+    this.trackActivity('inventory', results);
+
+    const subject = `Inventory Sync Alert - ${totalInventory} SKUs updated`;
+    const timestamp = new Date().toISOString();
+    
+    const textBody = `
+Inventory Sync Alert
+
+Time: ${timestamp}
+Total SKUs: ${totalInventory}
+Successful: ${results.inventory.success?.length || 0}
+Errors: ${results.inventory.errors?.length || 0}
+
+Details:
+${JSON.stringify(results.inventory, null, 2)}
+    `.trim();
+
+    const htmlBody = this.templates.generateInventoryTemplate({
+      inventory: results.inventory,
+      timestamp
+    });
+
+    try {
+      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'inventory');
+    } catch (emailError) {
+      console.error('📧 Failed to send inventory alert email:', emailError);
+    }
   }
 
   async sendSummaryNotification(summary) {
-    const subject = `Shopify Sync Summary - ${new Date().toLocaleDateString()}`;
+    if (!this.sendSummaries) {
+      return;
+    }
+
+    // Only send summary if there's significant activity
+    if (!this.hasSignificantActivity(summary.results)) {
+      console.log('📧 No significant activity detected, skipping summary email');
+      return;
+    }
+
+    this.trackActivity('summary', summary.results);
+
+    const subject = `Sync Summary - ${new Date().toLocaleDateString()}`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -270,110 +508,48 @@ Summary:
 ${JSON.stringify(summary, null, 2)}
     `.trim();
 
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
-        .container { max-width: 900px; margin: 0 auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; text-align: center; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
-        .header .subtitle { margin-top: 5px; opacity: 0.9; font-size: 14px; }
-        .content { padding: 30px; }
-        .overview { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
-        .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
-        .overview-item { text-align: center; }
-        .overview-number { font-size: 24px; font-weight: bold; color: #007bff; }
-        .overview-label { font-size: 12px; color: #6c757d; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 25px 0; }
-        .stat-card { background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 1px solid #e9ecef; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .stat-number { font-size: 2.5em; font-weight: bold; color: #007bff; margin-bottom: 5px; }
-        .stat-label { color: #6c757d; font-size: 14px; font-weight: 500; }
-        .section { margin: 25px 0; }
-        .section-header { display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef; }
-        .section-icon { font-size: 20px; margin-right: 10px; }
-        .section-title { color: #495057; font-size: 18px; font-weight: 600; margin: 0; }
-        .section-count { background-color: #007bff; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
-        .retailer-group { margin: 15px 0; }
-        .retailer-header { background-color: #e9ecef; padding: 10px 15px; border-radius: 5px; margin-bottom: 10px; font-weight: 600; color: #495057; }
-        .item { padding: 12px 15px; margin: 8px 0; border-radius: 6px; border-left: 4px solid; }
-        .success-item { background-color: #d4edda; border-color: #28a745; color: #155724; }
-        .error-item { background-color: #f8d7da; border-color: #dc3545; color: #721c24; }
-        .warning-item { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
-        .details { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-top: 25px; }
-        .details h3 { color: #495057; margin-top: 0; }
-        pre { white-space: pre-wrap; word-wrap: break-word; background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; font-size: 12px; overflow-x: auto; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-        .status-success { background-color: #d4edda; color: #155724; }
-        .status-error { background-color: #f8d7da; color: #721c24; }
-        .retailers-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-        .retailer-tag { background-color: #007bff; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
-                <div class="header-text">
-                    <h1>📊 Shopify Sync System Summary</h1>
-                    <div class="subtitle">Automated synchronization report</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="content">
-            <div class="overview">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <div>
-                        <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
-                    </div>
-                    <span class="status-badge status-${summary.status === 'success' ? 'success' : 'error'}">
-                        ${summary.status.toUpperCase()}
-                    </span>
-                </div>
-                <div style="color: #6c757d; font-size: 14px;">
-                    <strong>Duration:</strong> ${summary.duration ? Math.round(summary.duration / 1000) : 'N/A'} seconds
-                </div>
-                <div class="retailers-list">
-                    <strong>Retailers:</strong>
-                    ${summary.retailers?.map(r => `<span class="retailer-tag">${r}</span>`).join('') || 'None'}
-                </div>
-            </div>
-            
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number">${summary.results?.fulfillments?.total || 0}</div>
-                    <div class="stat-label">Fulfillments Processed</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${summary.results?.orders?.total || 0}</div>
-                    <div class="stat-label">Orders Imported</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${summary.results?.inventory?.total || 0}</div>
-                    <div class="stat-label">SKUs Updated</div>
-                </div>
-            </div>
-            
-            ${this.generateRetailerSections(summary.results)}
-            
-            <div class="details">
-                <h3>📋 Full Summary Details</h3>
-                <pre>${JSON.stringify(summary, null, 2)}</pre>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
-    `.trim();
+    const retailerSections = this.templates.generateRetailerSections(summary.results);
+    const htmlBody = this.templates.generateSummaryTemplate({
+      summary,
+      timestamp,
+      retailerSections
+    });
 
     try {
-      await this.sendEmail(subject, textBody, false, htmlBody);
+      await this.sendEmailWithRetry(subject, textBody, false, htmlBody, 'summary');
     } catch (emailError) {
-      console.error('Failed to send summary notification email:', emailError);
+      console.error('📧 Failed to send summary notification email:', emailError);
     }
+  }
+
+  // New method to get email statistics
+  getEmailStats() {
+    const now = Date.now();
+    const stats = {
+      totalEmails: Object.values(this.emailCounts).reduce((sum, count) => sum + count, 0),
+      emailCounts: this.emailCounts,
+      lastEmailTimes: {},
+      activityHistory: this.activityHistory.length,
+      isInQuietHours: this.isInQuietHours()
+    };
+
+    // Convert timestamps to readable format
+    Object.keys(this.lastEmailTimes).forEach(key => {
+      const timestamp = this.lastEmailTimes[key];
+      const minutesAgo = Math.round((now - timestamp) / 1000 / 60);
+      stats.lastEmailTimes[key] = `${minutesAgo} minutes ago`;
+    });
+
+    return stats;
+  }
+
+  // New method to reset email state (useful for troubleshooting)
+  resetEmailState() {
+    this.lastEmailTimes = {};
+    this.emailCounts = {};
+    this.activityHistory = [];
+    this.saveEmailState();
+    console.log('📧 Email state reset successfully');
   }
 }
 
