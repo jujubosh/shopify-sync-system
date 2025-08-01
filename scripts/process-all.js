@@ -36,7 +36,7 @@ async function processOrders(retailers, config) {
       const processor = new OrderProcessor(retailer, config);
       const orderResult = await processor.processOrders();
       results.total += orderResult?.total || 0;
-      if (orderResult?.success) {
+      if (orderResult?.success && orderResult.success.length > 0) {
         results.success.push({ retailer: retailer.name, message: orderResult.success });
       }
     } catch (error) {
@@ -61,7 +61,7 @@ async function processFulfillments(retailers, config) {
       const processor = new FulfillmentProcessor(retailer, config);
       const fulfillmentResult = await processor.processFulfillments();
       results.total += fulfillmentResult?.total || 0;
-      if (fulfillmentResult?.success) {
+      if (fulfillmentResult?.success && fulfillmentResult.success.length > 0) {
         results.success.push({ retailer: retailer.name, message: fulfillmentResult.success });
       }
     } catch (error) {
@@ -86,7 +86,7 @@ async function processInventorySync(retailers, config) {
       const processor = new InventoryProcessor(retailer, config);
       const inventoryResult = await processor.processInventorySync();
       results.total += inventoryResult?.total || 0;
-      if (inventoryResult?.success) {
+      if (inventoryResult?.success && inventoryResult.success.length > 0) {
         results.success.push({ retailer: retailer.name, message: inventoryResult.success });
       }
     } catch (error) {
@@ -145,6 +145,12 @@ async function main() {
         summary.results.fulfillments = await processFulfillments(retailers, config);
         summary.results.orders = await processOrders(retailers, config);
         summary.results.inventory = await processInventorySync(retailers, config);
+        
+        // Debug logging to see the exact structure
+        console.log('DEBUG: Orders results structure:', JSON.stringify(summary.results.orders, null, 2));
+        console.log('DEBUG: Orders total:', summary.results.orders.total);
+        console.log('DEBUG: Orders success length:', summary.results.orders.success?.length);
+        console.log('DEBUG: Orders errors length:', summary.results.orders.errors?.length);
         
         // Send individual alerts for each operation
         await emailNotifier.sendFulfillmentAlert(summary.results);

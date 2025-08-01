@@ -412,7 +412,8 @@ ${JSON.stringify(context, null, 2)}
       return;
     }
 
-    const totalFulfillments = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+    // Use the actual total from the results, not calculated from arrays
+    const totalFulfillments = results.fulfillments.total || 0;
     if (totalFulfillments === 0) {
       return;
     }
@@ -451,7 +452,8 @@ ${JSON.stringify(results.fulfillments, null, 2)}
       return;
     }
 
-    const totalOrders = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+    // Use the actual total from the results, not calculated from arrays
+    const totalOrders = results.orders.total || 0;
     if (totalOrders === 0) {
       return;
     }
@@ -490,7 +492,8 @@ ${JSON.stringify(results.orders, null, 2)}
       return;
     }
 
-    const totalInventory = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+    // Use the actual total from the results, not calculated from arrays
+    const totalInventory = results.inventory.total || 0;
     if (totalInventory === 0) {
       return;
     }
