@@ -1,0 +1,165 @@
+name: Test Database Email System
+
+on:
+  push:
+    branches: [ feature/email-notification-system ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-database-email:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Setup environment variables
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+        echo "MAILGUN_API_KEY=${{ secrets.MAILGUN_API_KEY }}" >> .env
+        echo "MAILGUN_DOMAIN=${{ secrets.MAILGUN_DOMAIN }}" >> .env
+        echo "EMAIL_FROM=admin@livegoodlogistics.com" >> .env
+        echo "EMAIL_TO=justin@livegoodlogistics.com" >> .env
+        echo "LOG_LEVEL=info" >> .env
+
+    - name: Test database connection
+      run: npm run test-db
+
+    - name: Test database email system
+      run: npm run test-email
+
+    - name: Test complete system
+      run: node scripts/test-complete-system.js
+
+    - name: Verify database data
+      run: npm run verify-data
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          logs/
+          .env
+        retention-days: 7
+
+  test-with-real-data:
+    runs-on: ubuntu-latest
+    needs: test-database-email
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Setup environment variables
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+        echo "MAILGUN_API_KEY=${{ secrets.MAILGUN_API_KEY }}" >> .env
+        echo "MAILGUN_DOMAIN=${{ secrets.MAILGUN_DOMAIN }}" >> .env
+        echo "EMAIL_FROM=admin@livegoodlogistics.com" >> .env
+        echo "EMAIL_TO=justin@livegoodlogistics.com" >> .env
+        echo "LOG_LEVEL=info" >> .env
+
+    - name: Test with real retailer data
+      run: |
+        echo "Testing with real retailer configurations..."
+        node -e "
+        const { DatabaseEmailNotifier } = require('./scripts/utils/database-email-notifier');
+        const { supabase, TABLES } = require('./config/database');
+        const config = require('./config/global-config-test.json');
+        
+        async function testWithRealData() {
+          const emailNotifier = new DatabaseEmailNotifier(config);
+          
+          // Get real retailers from database
+          const { data: retailers } = await supabase
+            .from(TABLES.RETAILERS)
+            .select('name, domain, settings');
+          
+          console.log('Found retailers:', retailers?.map(r => r.name));
+          
+          // Test email with real retailer data
+          const testResults = {
+            orders: {
+              success: [
+                { id: 'github-test-order-1', retailer: retailers?.[0]?.name || 'Test Store' }
+              ],
+              errors: []
+            }
+          };
+          
+          await emailNotifier.logActivity('github_actions_test', testResults, true, 1000);
+          await emailNotifier.sendOrderAlert(testResults);
+          
+          console.log('✅ GitHub Actions test completed successfully');
+        }
+        
+        testWithRealData().catch(console.error);
+        "
+
+    - name: Verify GitHub Actions test results
+      run: |
+        echo "Verifying GitHub Actions test results..."
+        node -e "
+        const { supabase, TABLES } = require('./config/database');
+        
+        async function verifyResults() {
+          const { data: recentActivities } = await supabase
+            .from(TABLES.ACTIVITY_LOGS)
+            .select('operation, success, created_at')
+            .eq('operation', 'github_actions_test')
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          const { data: recentEmails } = await supabase
+            .from(TABLES.EMAIL_NOTIFICATIONS)
+            .select('type, subject, sent_at')
+            .order('sent_at', { ascending: false })
+            .limit(1);
+          
+          console.log('Recent GitHub Actions activity:', recentActivities?.[0]);
+          console.log('Recent GitHub Actions email:', recentEmails?.[0]);
+          
+          if (recentActivities?.[0] && recentEmails?.[0]) {
+            console.log('✅ GitHub Actions test verified successfully');
+          } else {
+            console.log('❌ GitHub Actions test verification failed');
+            process.exit(1);
+          }
+        }
+        
+        verifyResults().catch(console.error);
+        "
+
+    - name: Upload GitHub Actions test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: github-actions-test-results
+        path: |
+          logs/
+          .env
+        retention-days: 7 

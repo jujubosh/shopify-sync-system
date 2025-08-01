@@ -11,122 +11,133 @@ async function setupDatabase() {
   console.log('🗄️  Setting up database schema...\n');
 
   try {
-    // Create retailers table
-    console.log('Creating retailers table...');
-    const { error: retailersError } = await supabase.rpc('exec_sql', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS ${TABLES.RETAILERS} (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          name VARCHAR(255) NOT NULL,
-          domain VARCHAR(255) NOT NULL UNIQUE,
-          api_token VARCHAR(255) NOT NULL,
-          target_location_id VARCHAR(255),
-          settings JSONB DEFAULT '{}',
-          enabled BOOLEAN DEFAULT true,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-      `
-    });
-
-    if (retailersError) {
-      console.log('Retailers table already exists or error:', retailersError.message);
+    // Note: Tables need to be created manually in Supabase dashboard
+    // This script will verify table access and create indexes if possible
+    
+    console.log('Verifying table access...');
+    
+    // Test access to retailers table
+    const { error: retailersError } = await supabase
+      .from(TABLES.RETAILERS)
+      .select('id')
+      .limit(1);
+    
+    if (retailersError && retailersError.message.includes('does not exist')) {
+      console.log('❌ Retailers table does not exist');
+      console.log('Please create the tables manually in your Supabase dashboard:');
+      console.log('1. Go to your Supabase project dashboard');
+      console.log('2. Navigate to Table Editor');
+      console.log('3. Create the following tables:');
+      console.log('   - retailers');
+      console.log('   - sync_jobs');
+      console.log('   - email_notifications');
+      console.log('   - activity_logs');
+      console.log('\nSee DATABASE_SETUP.md for the exact SQL schema');
+      return;
+    } else if (retailersError) {
+      console.log('⚠️  Retailers table access issue:', retailersError.message);
     } else {
-      console.log('✅ Retailers table created');
+      console.log('✅ Retailers table accessible');
     }
 
-    // Create sync_jobs table
-    console.log('Creating sync_jobs table...');
-    const { error: syncJobsError } = await supabase.rpc('exec_sql', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS ${TABLES.SYNC_JOBS} (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          retailer_id UUID REFERENCES ${TABLES.RETAILERS}(id),
-          operation_type VARCHAR(50) NOT NULL,
-          status VARCHAR(50) DEFAULT 'pending',
-          results JSONB DEFAULT '{}',
-          error_message TEXT,
-          started_at TIMESTAMP WITH TIME ZONE,
-          completed_at TIMESTAMP WITH TIME ZONE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-      `
-    });
-
-    if (syncJobsError) {
-      console.log('Sync jobs table already exists or error:', syncJobsError.message);
+    // Test access to sync_jobs table
+    const { error: syncJobsError } = await supabase
+      .from(TABLES.SYNC_JOBS)
+      .select('id')
+      .limit(1);
+    
+    if (syncJobsError && syncJobsError.message.includes('does not exist')) {
+      console.log('❌ Sync jobs table does not exist');
+    } else if (syncJobsError) {
+      console.log('⚠️  Sync jobs table access issue:', syncJobsError.message);
     } else {
-      console.log('✅ Sync jobs table created');
+      console.log('✅ Sync jobs table accessible');
     }
 
-    // Create email_notifications table
-    console.log('Creating email_notifications table...');
-    const { error: emailError } = await supabase.rpc('exec_sql', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS ${TABLES.EMAIL_NOTIFICATIONS} (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          type VARCHAR(50) NOT NULL,
-          recipient VARCHAR(255) NOT NULL,
-          subject VARCHAR(500) NOT NULL,
-          body TEXT,
-          html_body TEXT,
-          sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          status VARCHAR(50) DEFAULT 'sent'
-        );
-      `
-    });
-
-    if (emailError) {
-      console.log('Email notifications table already exists or error:', emailError.message);
+    // Test access to email_notifications table
+    const { error: emailError } = await supabase
+      .from(TABLES.EMAIL_NOTIFICATIONS)
+      .select('id')
+      .limit(1);
+    
+    if (emailError && emailError.message.includes('does not exist')) {
+      console.log('❌ Email notifications table does not exist');
+    } else if (emailError) {
+      console.log('⚠️  Email notifications table access issue:', emailError.message);
     } else {
-      console.log('✅ Email notifications table created');
+      console.log('✅ Email notifications table accessible');
     }
 
-    // Create activity_logs table
-    console.log('Creating activity_logs table...');
-    const { error: activityError } = await supabase.rpc('exec_sql', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS ${TABLES.ACTIVITY_LOGS} (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          retailer_id UUID REFERENCES ${TABLES.RETAILERS}(id),
-          operation VARCHAR(50) NOT NULL,
-          success BOOLEAN NOT NULL,
-          details JSONB DEFAULT '{}',
-          duration_ms INTEGER,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-      `
-    });
-
-    if (activityError) {
-      console.log('Activity logs table already exists or error:', activityError.message);
+    // Test access to activity_logs table
+    const { error: activityError } = await supabase
+      .from(TABLES.ACTIVITY_LOGS)
+      .select('id')
+      .limit(1);
+    
+    if (activityError && activityError.message.includes('does not exist')) {
+      console.log('❌ Activity logs table does not exist');
+    } else if (activityError) {
+      console.log('⚠️  Activity logs table access issue:', activityError.message);
     } else {
-      console.log('✅ Activity logs table created');
+      console.log('✅ Activity logs table accessible');
     }
 
-    // Create indexes
-    console.log('Creating indexes...');
-    const indexes = [
-      `CREATE INDEX IF NOT EXISTS idx_sync_jobs_retailer_status ON ${TABLES.SYNC_JOBS}(retailer_id, status)`,
-      `CREATE INDEX IF NOT EXISTS idx_sync_jobs_created_at ON ${TABLES.SYNC_JOBS}(created_at)`,
-      `CREATE INDEX IF NOT EXISTS idx_activity_logs_retailer_created ON ${TABLES.ACTIVITY_LOGS}(retailer_id, created_at)`,
-      `CREATE INDEX IF NOT EXISTS idx_email_notifications_sent_at ON ${TABLES.EMAIL_NOTIFICATIONS}(sent_at)`
-    ];
+    console.log('\n📋 Manual Table Creation Required');
+    console.log('Please create the following tables in your Supabase dashboard:');
+    console.log('\n1. Go to: https://supabase.com/dashboard/project/orvuhoexqgumpwynchay/editor');
+    console.log('2. Click "New table" for each table below');
+    console.log('\n=== RETAILERS TABLE ===');
+    console.log('Name: retailers');
+    console.log('Columns:');
+    console.log('  - id (uuid, primary key)');
+    console.log('  - name (text, not null)');
+    console.log('  - domain (text, not null, unique)');
+    console.log('  - api_token (text, not null)');
+    console.log('  - target_location_id (text)');
+    console.log('  - settings (jsonb, default: {})');
+    console.log('  - enabled (boolean, default: true)');
+    console.log('  - created_at (timestamp with time zone, default: now())');
+    console.log('  - updated_at (timestamp with time zone, default: now())');
+    
+    console.log('\n=== SYNC_JOBS TABLE ===');
+    console.log('Name: sync_jobs');
+    console.log('Columns:');
+    console.log('  - id (uuid, primary key)');
+    console.log('  - retailer_id (uuid, foreign key to retailers.id)');
+    console.log('  - operation_type (text, not null)');
+    console.log('  - status (text, default: pending)');
+    console.log('  - results (jsonb, default: {})');
+    console.log('  - error_message (text)');
+    console.log('  - started_at (timestamp with time zone)');
+    console.log('  - completed_at (timestamp with time zone)');
+    console.log('  - created_at (timestamp with time zone, default: now())');
+    
+    console.log('\n=== EMAIL_NOTIFICATIONS TABLE ===');
+    console.log('Name: email_notifications');
+    console.log('Columns:');
+    console.log('  - id (uuid, primary key)');
+    console.log('  - type (text, not null)');
+    console.log('  - recipient (text, not null)');
+    console.log('  - subject (text, not null)');
+    console.log('  - body (text)');
+    console.log('  - html_body (text)');
+    console.log('  - sent_at (timestamp with time zone, default: now())');
+    console.log('  - status (text, default: sent)');
+    
+    console.log('\n=== ACTIVITY_LOGS TABLE ===');
+    console.log('Name: activity_logs');
+    console.log('Columns:');
+    console.log('  - id (uuid, primary key)');
+    console.log('  - retailer_id (uuid, foreign key to retailers.id)');
+    console.log('  - operation (text, not null)');
+    console.log('  - success (boolean, not null)');
+    console.log('  - details (jsonb, default: {})');
+    console.log('  - duration_ms (integer)');
+    console.log('  - created_at (timestamp with time zone, default: now())');
 
-    for (const indexSql of indexes) {
-      const { error: indexError } = await supabase.rpc('exec_sql', { sql: indexSql });
-      if (indexError) {
-        console.log('Index creation error:', indexError.message);
-      }
-    }
-
-    console.log('✅ All indexes created');
-
-    console.log('\n🎉 Database setup completed successfully!');
-    console.log('\nNext steps:');
-    console.log('1. Run: node scripts/migrate-data.js');
-    console.log('2. Update your environment variables with Supabase credentials');
-    console.log('3. Test the database connection');
+    console.log('\nAfter creating the tables, run:');
+    console.log('npm run test-db');
+    console.log('npm run migrate');
 
   } catch (error) {
     console.error('❌ Database setup failed:', error);
