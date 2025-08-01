@@ -9,10 +9,16 @@ class EmailNotifier {
     this.apiKey = config.mailgun?.apiKey && !config.mailgun.apiKey.startsWith('MAILGUN_') 
       ? config.mailgun.apiKey 
       : (process.env[config.mailgun?.apiKey] || process.env.MAILGUN_API_KEY);
-    this.domain = config.mailgun?.domain || process.env.MAILGUN_DOMAIN;
+    this.domain = config.mailgun?.domain && !config.mailgun.domain.startsWith('MAILGUN_')
+      ? config.mailgun.domain
+      : (process.env[config.mailgun?.domain] || process.env.MAILGUN_DOMAIN);
     this.baseUrl = 'https://api.mailgun.net';
-    this.fromEmail = config.emailNotifications?.fromEmail || 'admin@livegoodlogistics.com';
-    this.toEmail = config.emailNotifications?.toEmail || 'justin@livegoodlogistics.com';
+    this.fromEmail = config.emailNotifications?.fromEmail && !config.emailNotifications.fromEmail.startsWith('EMAIL_')
+      ? config.emailNotifications.fromEmail
+      : (process.env[config.emailNotifications?.fromEmail] || process.env.EMAIL_FROM || 'admin@livegoodlogistics.com');
+    this.toEmail = config.emailNotifications?.toEmail && !config.emailNotifications.toEmail.startsWith('EMAIL_')
+      ? config.emailNotifications.toEmail
+      : (process.env[config.emailNotifications?.toEmail] || process.env.EMAIL_TO || 'justin@livegoodlogistics.com');
     this.enabled = config.emailNotifications?.enabled !== false;
     
     // Enhanced email settings with better defaults
