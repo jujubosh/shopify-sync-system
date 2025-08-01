@@ -48,6 +48,11 @@ jobs:
         MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
         SHOPIFY_LGL_TOKEN: ${{ secrets.SHOPIFY_LGL_TOKEN }}
+        SHOPIFY_NATIONWIDE_PLANTS_TOKEN: ${{ secrets.SHOPIFY_NATIONWIDE_PLANTS_TOKEN }}
+        SHOPIFY_TEST_TOKEN: ${{ secrets.SHOPIFY_TEST_TOKEN }}
+        EMAIL_FROM: admin@livegoodlogistics.com
+        EMAIL_TO: justin@livegoodlogistics.com
+        LOG_LEVEL: info
       run: |
         # Determine operation based on cron schedule or manual input
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
