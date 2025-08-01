@@ -3,7 +3,7 @@ const path = require('path');
 const { OrderProcessor } = require('./utils/order-processor');
 const { FulfillmentProcessor } = require('./utils/fulfillment-processor');
 const { InventoryProcessor } = require('./utils/inventory-processor');
-const { EmailNotifier } = require('./utils/email-notifier');
+const { DatabaseEmailNotifier } = require('./utils/database-email-notifier');
 
 function loadConfig() {
   // Check if we're in test mode
@@ -104,7 +104,7 @@ async function main() {
   
   const config = loadConfig();
   let retailers = loadRetailers();
-  const emailNotifier = new EmailNotifier(config);
+  const emailNotifier = new DatabaseEmailNotifier(config);
   
   if (retailerId) {
     retailers = retailers.filter(r => r.id === retailerId);

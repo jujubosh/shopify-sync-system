@@ -138,9 +138,13 @@ class DatabaseEmailNotifier {
   }
 
   async logActivity(operation, results, success = true, durationMs = null) {
-    if (!this.activityTracking) return;
+    if (!this.activityTracking) {
+      console.log('📊 Activity tracking disabled, skipping database log');
+      return;
+    }
 
     try {
+      console.log(`📊 Logging activity to database: ${operation} (success: ${success})`);
       const { error } = await supabase
         .from(TABLES.ACTIVITY_LOGS)
         .insert({
@@ -153,6 +157,8 @@ class DatabaseEmailNotifier {
 
       if (error) {
         console.error('Error logging activity:', error);
+      } else {
+        console.log(`✅ Activity logged successfully: ${operation}`);
       }
     } catch (error) {
       console.error('Error logging activity:', error);
@@ -252,11 +258,14 @@ class DatabaseEmailNotifier {
     let totalActivity = 0;
     let hasErrors = false;
     
+    console.log('🔍 Checking for significant activity:', JSON.stringify(results, null, 2));
+    
     // Check fulfillments
     if (results.fulfillments) {
       const fulfillmentActivity = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
       totalActivity += fulfillmentActivity;
       if (results.fulfillments.errors?.length > 0) hasErrors = true;
+      console.log(`📦 Fulfillments: ${fulfillmentActivity} activity, ${results.fulfillments.errors?.length || 0} errors`);
     }
     
     // Check orders
@@ -264,6 +273,7 @@ class DatabaseEmailNotifier {
       const orderActivity = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
       totalActivity += orderActivity;
       if (results.orders.errors?.length > 0) hasErrors = true;
+      console.log(`📦 Orders: ${orderActivity} activity, ${results.orders.errors?.length || 0} errors`);
     }
     
     // Check inventory
@@ -271,15 +281,22 @@ class DatabaseEmailNotifier {
       const inventoryActivity = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
       totalActivity += inventoryActivity;
       if (results.inventory.errors?.length > 0) hasErrors = true;
+      console.log(`📦 Inventory: ${inventoryActivity} activity, ${results.inventory.errors?.length || 0} errors`);
     }
+    
+    console.log(`📊 Total activity: ${totalActivity}, Has errors: ${hasErrors}`);
     
     // In GitHub Actions mode, always send emails if there's any activity or errors
     if (this.isGitHubActionsEnvironment()) {
-      return totalActivity > 0 || hasErrors;
+      const shouldSend = totalActivity > 0 || hasErrors;
+      console.log(`🚀 GitHub Actions mode: ${shouldSend ? 'SEND' : 'SKIP'} email`);
+      return shouldSend;
     }
     
     // For non-GitHub Actions environments, use the threshold
-    return totalActivity >= this.minActivityThreshold;
+    const shouldSend = totalActivity >= this.minActivityThreshold;
+    console.log(`🏠 Local mode: ${shouldSend ? 'SEND' : 'SKIP'} email (threshold: ${this.minActivityThreshold})`);
+    return shouldSend;
   }
 
   async sendEmailWithRetry(subject, body, isError = false, htmlBody = null, operation = 'general', retryCount = 0) {
@@ -427,7 +444,8 @@ ${JSON.stringify(context, null, 2)}
       return;
     }
 
-    const totalFulfillments = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+    // Use the actual total from results, not calculated from arrays
+    const totalFulfillments = results.fulfillments.total || 0;
     if (totalFulfillments === 0) {
       return;
     }
@@ -466,7 +484,8 @@ ${JSON.stringify(results.fulfillments, null, 2)}
       return;
     }
 
-    const totalOrders = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+    // Use the actual total from results, not calculated from arrays
+    const totalOrders = results.orders.total || 0;
     if (totalOrders === 0) {
       return;
     }
@@ -505,7 +524,8 @@ ${JSON.stringify(results.orders, null, 2)}
       return;
     }
 
-    const totalInventory = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+    // Use the actual total from results, not calculated from arrays
+    const totalInventory = results.inventory.total || 0;
     if (totalInventory === 0) {
       return;
     }
