@@ -1,6 +1,18 @@
 {
+  "name": "shopify-sync-system",
+  "version": "1.0.0",
+  "description": "Shopify order processing and email notification system",
+  "main": "do-import-orders.js",
+  "scripts": {
+    "setup-env": "node scripts/setup-env.js",
+    "test-db": "node scripts/test-database.js",
+    "setup-db": "node scripts/setup-database.js",
+    "migrate": "node scripts/migrate-data.js",
+    "start": "node do-import-orders.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "dotenv": "^16.3.1"
   }
 }
