@@ -2,14 +2,8 @@ name: Shopify Sync System
 
 on:
   schedule:
-    # Fulfillment processing - every 30 minutes (reduced from 5 minutes)
+    # Run full sync every 30 minutes
     - cron: '*/30 * * * *'
-    # Order imports - every 2 hours (reduced from 15 minutes)
-    - cron: '0 */2 * * *'
-    # Inventory sync - every 4 hours (reduced from 30 minutes)
-    - cron: '0 */4 * * *'
-    # Full sync with summary - every 6 hours (reduced from 2 hours)
-    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       operation:
@@ -56,23 +50,11 @@ jobs:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       run: |
-        # Determine operation based on cron schedule or manual input
+        # Always run the full sync operation
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           OPERATION="${{ github.event.inputs.operation }}"
         else
-          # Determine operation based on cron schedule
-          CRON_EXPR="${{ github.event.schedule }}"
-          if [[ "$CRON_EXPR" == "*/30 * * * *" ]]; then
-            OPERATION="fulfillments"
-          elif [[ "$CRON_EXPR" == "0 */2 * * *" ]]; then
-            OPERATION="orders"
-          elif [[ "$CRON_EXPR" == "0 */4 * * *" ]]; then
-            OPERATION="inventory"
-          elif [[ "$CRON_EXPR" == "0 */6 * * *" ]]; then
-            OPERATION="all"
-          else
-            OPERATION="all"
-          fi
+          OPERATION="all"
         fi
         
         echo "Running operation: $OPERATION"
