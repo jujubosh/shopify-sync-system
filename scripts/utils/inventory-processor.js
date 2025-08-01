@@ -19,7 +19,6 @@ class InventoryProcessor {
     try {
       const skus = await this.fetchAllSkus();
       this.logger.logInfo(`Found ${skus.length} SKUs to sync`);
-      results.total = skus.length;
       
       const BATCH_SIZE = 10;
       const DELAY_BETWEEN_BATCHES = 2000;
@@ -30,7 +29,10 @@ class InventoryProcessor {
         
         try {
           await Promise.all(batch.map(sku => this.syncInventory(sku)));
-          batch.forEach(sku => results.success.push(`Synced inventory for SKU: ${sku}`));
+          batch.forEach(sku => {
+            results.success.push(`Synced inventory for SKU: ${sku}`);
+            results.total++; // Only increment total for successfully processed SKUs
+          });
           this.logger.logInfo(`Completed batch ${Math.floor(i/BATCH_SIZE) + 1}`);
           
           if (i + BATCH_SIZE < skus.length) {
@@ -39,7 +41,10 @@ class InventoryProcessor {
           }
         } catch (error) {
           this.logger.logError(`Error processing batch ${Math.floor(i/BATCH_SIZE) + 1}: ${error.message}`);
-          batch.forEach(sku => results.errors.push(`Failed to sync inventory for SKU ${sku}: ${error.message}`));
+          batch.forEach(sku => {
+            results.errors.push(`Failed to sync inventory for SKU ${sku}: ${error.message}`);
+            // Don't increment total for failed SKUs - only count successful ones
+          });
         }
       }
 

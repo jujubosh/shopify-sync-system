@@ -19,7 +19,6 @@ class FulfillmentProcessor {
     try {
       const orders = await this.getFulfilledTargetOrders();
       this.logger.logInfo(`Found ${orders.length} fulfilled orders to push back`);
-      results.total = orders.length;
       
       for (const order of orders) {
         try {
@@ -28,11 +27,15 @@ class FulfillmentProcessor {
           await this.tagTargetOrder(order.id, 'fulfillment-pushed');
           this.logger.logInfo(`Successfully pushed fulfillment for target order ${order.name}`);
           results.success.push(`Pushed fulfillment for order ${order.name}`);
+          results.total++; // Only increment total for successfully processed orders
         } catch (error) {
-          this.logger.logError(`Failed to push fulfillment for target order ${order.name}: ${error.message}`);
+          this.logger.logError(`Failed to push fulfillment for target order ${order.name}: ${error.message}`, 'error', error);
           results.errors.push(`Failed to push fulfillment for order ${order.name}: ${error.message}`);
+          // Don't increment total for failed orders - only count successful ones
         }
       }
+      
+      this.logger.logInfo(`Fulfillment processing complete: ${results.total} processed, ${results.success.length} successful, ${results.errors.length} failed`);
       
       return results;
     } catch (error) {
@@ -93,18 +96,28 @@ class FulfillmentProcessor {
       for (const edge of orderEdges) {
         const order = edge.node;
         // Only process if not already pushed
-        if (order.tags.includes('fulfillment-pushed')) continue;
+        if (order.tags.includes('fulfillment-pushed')) {
+          this.logger.logInfo(`Skipping ${order.name}: already pushed`);
+          continue;
+        }
         
         // Must have an 'imported-from-...' tag and a numeric order number tag
         const importedFromTag = order.tags.find(tag => tag.startsWith('imported-from-'));
         const orderNumberTag = order.tags.find(tag => /^\d+$/.test(tag));
         
-        if (!importedFromTag || !orderNumberTag) continue;
+        if (!importedFromTag || !orderNumberTag) {
+          this.logger.logInfo(`Skipping ${order.name}: missing required tags (imported-from: ${!!importedFromTag}, order number: ${!!orderNumberTag})`);
+          continue;
+        }
         
         // Extract source info using tags
         const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(order.tags);
-        if (!sourceOrderNumber || !sourceStoreName) continue;
+        if (!sourceOrderNumber || !sourceStoreName) {
+          this.logger.logInfo(`Skipping ${order.name}: could not extract source info (orderNumber: ${sourceOrderNumber}, storeName: ${sourceStoreName})`);
+          continue;
+        }
         
+        this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
         orders.push({ ...order, sourceOrderNumber, sourceStoreName });
       }
       

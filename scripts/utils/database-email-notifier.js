@@ -204,6 +204,9 @@ class DatabaseEmailNotifier {
   }
 
   async canSendEmail(type, operation = 'general') {
+    // Temporarily disable rate limiting to see actual error messages
+    return true;
+    
     const now = Date.now();
     const lastTime = await this.getLastEmailTime(type, operation);
     const timeSinceLastEmail = lastTime ? now - lastTime : Infinity;
@@ -253,7 +256,10 @@ class DatabaseEmailNotifier {
   }
 
   hasSignificantActivity(results) {
-    if (!results) return false;
+    if (!results) {
+      console.log('🔍 No results provided to hasSignificantActivity');
+      return false;
+    }
     
     let totalActivity = 0;
     let hasErrors = false;
@@ -262,7 +268,7 @@ class DatabaseEmailNotifier {
     
     // Check fulfillments
     if (results.fulfillments) {
-      const fulfillmentActivity = (results.fulfillments.success?.length || 0) + (results.fulfillments.errors?.length || 0);
+      const fulfillmentActivity = results.fulfillments.total || 0;
       totalActivity += fulfillmentActivity;
       if (results.fulfillments.errors?.length > 0) hasErrors = true;
       console.log(`📦 Fulfillments: ${fulfillmentActivity} activity, ${results.fulfillments.errors?.length || 0} errors`);
@@ -270,7 +276,7 @@ class DatabaseEmailNotifier {
     
     // Check orders
     if (results.orders) {
-      const orderActivity = (results.orders.success?.length || 0) + (results.orders.errors?.length || 0);
+      const orderActivity = results.orders.total || 0;
       totalActivity += orderActivity;
       if (results.orders.errors?.length > 0) hasErrors = true;
       console.log(`📦 Orders: ${orderActivity} activity, ${results.orders.errors?.length || 0} errors`);
@@ -278,7 +284,7 @@ class DatabaseEmailNotifier {
     
     // Check inventory
     if (results.inventory) {
-      const inventoryActivity = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+      const inventoryActivity = results.inventory.total || 0;
       totalActivity += inventoryActivity;
       if (results.inventory.errors?.length > 0) hasErrors = true;
       console.log(`📦 Inventory: ${inventoryActivity} activity, ${results.inventory.errors?.length || 0} errors`);
@@ -440,13 +446,19 @@ ${JSON.stringify(context, null, 2)}
   }
 
   async sendFulfillmentAlert(results) {
+    console.log('🔍 sendFulfillmentAlert called with:', JSON.stringify(results?.fulfillments, null, 2));
+    
     if (!this.sendFulfillmentAlerts || !results?.fulfillments) {
+      console.log('📧 Fulfillment alerts disabled or no fulfillments results');
       return;
     }
 
     // Use the actual total from results, not calculated from arrays
     const totalFulfillments = results.fulfillments.total || 0;
+    console.log(`📧 Total fulfillments: ${totalFulfillments}`);
+    
     if (totalFulfillments === 0) {
+      console.log('📧 No fulfillments to process, skipping email');
       return;
     }
 

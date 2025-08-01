@@ -69,4 +69,3 @@ Thumbs.db
 # Test configuration files (exclude actual test configs but keep templates)
 config/global-config-test.json
 config/retailers/test-store.json
-config/retailers/nationwide-plants-config.json 
