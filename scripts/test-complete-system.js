@@ -8,13 +8,24 @@
 require('dotenv').config();
 const { DatabaseEmailNotifier } = require('./utils/database-email-notifier');
 const { supabase, TABLES } = require('../config/database');
+const fs = require('fs');
+const path = require('path');
 
 async function testCompleteSystem() {
   console.log('🧪 Testing complete system with database integration...\n');
 
   try {
-    // Load test configuration
-    const config = require('../config/global-config-test.json');
+    // Load appropriate configuration based on environment
+    let config;
+    const testConfigPath = path.join(__dirname, '../config/global-config-test.json');
+    
+    if (fs.existsSync(testConfigPath)) {
+      console.log('📁 Using test configuration for local testing');
+      config = require('../config/global-config-test.json');
+    } else {
+      console.log('📁 Using production configuration');
+      config = require('../config/global-config.json');
+    }
     
     // Create email notifier
     const emailNotifier = new DatabaseEmailNotifier(config);

@@ -11,7 +11,7 @@ class ShopifyClient {
     this.baseUrl = `https://${domain}/admin/api/2025-07`;
   }
 
-  async graphql(query, variables = {}, retries = 3) {
+  async graphql(query, variables = {}, retries = 1) {
     const url = `${this.baseUrl}/graphql.json`;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {

@@ -17,10 +17,14 @@
     "level": "info",
     "retentionDays": 30
   },
+  "mailgun": {
+    "apiKey": "MAILGUN_API_KEY",
+    "domain": "MAILGUN_DOMAIN"
+  },
   "emailNotifications": {
     "enabled": true,
-    "fromEmail": "admin@livegoodlogistics.com",
-    "toEmail": "justin@livegoodlogistics.com",
+    "fromEmail": "EMAIL_FROM",
+    "toEmail": "EMAIL_TO",
     "sendErrors": true,
     "sendSummaries": true,
     "sendFulfillmentAlerts": true,

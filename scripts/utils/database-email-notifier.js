@@ -5,13 +5,11 @@ const { EmailTemplates } = require('./email-templates');
 class DatabaseEmailNotifier {
   constructor(config) {
     // Use config Mailgun credentials if available, otherwise fall back to environment variables
-    this.apiKey = config.mailgun?.apiKey && !config.mailgun.apiKey.startsWith('MAILGUN_') 
-      ? config.mailgun.apiKey 
-      : (process.env[config.mailgun?.apiKey] || process.env.MAILGUN_API_KEY);
-    this.domain = config.mailgun?.domain || process.env.MAILGUN_DOMAIN;
+    this.apiKey = this.getConfigValue(config.mailgun?.apiKey, process.env.MAILGUN_API_KEY);
+    this.domain = this.getConfigValue(config.mailgun?.domain, process.env.MAILGUN_DOMAIN);
     this.baseUrl = 'https://api.mailgun.net';
-    this.fromEmail = config.emailNotifications?.fromEmail || 'admin@livegoodlogistics.com';
-    this.toEmail = config.emailNotifications?.toEmail || 'justin@livegoodlogistics.com';
+    this.fromEmail = this.getConfigValue(config.emailNotifications?.fromEmail, process.env.EMAIL_FROM, 'admin@livegoodlogistics.com');
+    this.toEmail = this.getConfigValue(config.emailNotifications?.toEmail, process.env.EMAIL_TO, 'justin@livegoodlogistics.com');
     this.enabled = config.emailNotifications?.enabled !== false;
     
     // Enhanced email settings with better defaults
@@ -45,6 +43,19 @@ class DatabaseEmailNotifier {
     
     // Validate configuration
     this.validateConfiguration();
+  }
+
+  getConfigValue(configValue, envValue, defaultValue = null) {
+    // If config value is an environment variable name, use the env value
+    if (configValue && configValue.startsWith('MAILGUN_') || configValue && configValue.startsWith('EMAIL_')) {
+      return envValue || defaultValue;
+    }
+    // If config value is a direct value, use it
+    if (configValue && !configValue.startsWith('MAILGUN_') && !configValue.startsWith('EMAIL_')) {
+      return configValue;
+    }
+    // Otherwise use env value or default
+    return envValue || defaultValue;
   }
 
   validateConfiguration() {
