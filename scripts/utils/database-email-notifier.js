@@ -204,9 +204,6 @@ class DatabaseEmailNotifier {
   }
 
   async canSendEmail(type, operation = 'general') {
-    // Temporarily disable rate limiting to see actual error messages
-    return true;
-    
     const now = Date.now();
     const lastTime = await this.getLastEmailTime(type, operation);
     const timeSinceLastEmail = lastTime ? now - lastTime : Infinity;
