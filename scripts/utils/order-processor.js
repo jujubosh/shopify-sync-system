@@ -19,7 +19,8 @@ class OrderProcessor {
     try {
       const orders = await this.getEligibleOrders();
       this.logger.logInfo(`Found ${orders.length} eligible orders`);
-      results.total = orders.length;
+      
+      let importedCount = 0;
       
       for (const order of orders) {
         try {
@@ -28,11 +29,15 @@ class OrderProcessor {
           await this.tagOrders(order, newOrderGid);
           this.logger.logInfo(`Successfully imported order ${order.name} as ${newOrderGid}`);
           results.success.push(`Imported order ${order.name} as ${newOrderGid}`);
+          importedCount++;
         } catch (error) {
           this.logger.logError(`Failed to import order ${order.name}: ${error.message}`);
           results.errors.push(`Failed to import order ${order.name}: ${error.message}`);
         }
       }
+      
+      results.total = importedCount;
+      this.logger.logInfo(`Actually imported ${importedCount} orders`);
       
       return results;
     } catch (error) {
