@@ -117,6 +117,13 @@ class FulfillmentProcessor {
           continue;
         }
         
+        // Only process orders that were imported from the current retailer
+        const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
+        if (sourceStoreName !== currentRetailerName) {
+          this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
+          continue;
+        }
+        
         this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
         orders.push({ ...order, sourceOrderNumber, sourceStoreName });
       }
