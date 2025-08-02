@@ -281,7 +281,10 @@ class InventoryProcessor {
           throw error;
         }
         const delayMs = initialDelay * Math.pow(2, retries);
-        this.logger.logInfo(`Retry attempt ${retries + 1} after ${delayMs}ms delay`);
+        // Only log retries if we're actually retrying (not on first attempt)
+        if (retries > 0) {
+          this.logger.logInfo(`Retry ${retries + 1}/${maxRetries} (${delayMs}ms delay)`);
+        }
         await this.delay(delayMs);
         retries++;
       }
