@@ -20,12 +20,14 @@ class InventoryProcessor {
       const skus = await this.fetchAllSkus();
       this.logger.logInfo(`Found ${skus.length} SKUs to sync`);
       
-      const BATCH_SIZE = 10;
-      const DELAY_BETWEEN_BATCHES = 2000;
+      const BATCH_SIZE = 25; // Increased from 10
+      const DELAY_BETWEEN_BATCHES = 500; // Reduced from 2000ms
 
       for (let i = 0; i < skus.length; i += BATCH_SIZE) {
         const batch = skus.slice(i, i + BATCH_SIZE);
-        this.logger.logInfo(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(skus.length/BATCH_SIZE)}`);
+        const batchNum = Math.floor(i/BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(skus.length/BATCH_SIZE);
+        this.logger.logInfo(`Processing batch ${batchNum}/${totalBatches} (${batch.length} SKUs)`);
         
         try {
           await Promise.all(batch.map(sku => this.syncInventory(sku)));
@@ -33,14 +35,14 @@ class InventoryProcessor {
             results.success.push(`Synced inventory for SKU: ${sku}`);
             results.total++; // Only increment total for successfully processed SKUs
           });
-          this.logger.logInfo(`Completed batch ${Math.floor(i/BATCH_SIZE) + 1}`);
+          this.logger.logInfo(`✅ Completed batch ${batchNum}/${totalBatches}`);
           
           if (i + BATCH_SIZE < skus.length) {
-            this.logger.logInfo(`Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+            this.logger.logInfo(`⏳ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
             await this.delay(DELAY_BETWEEN_BATCHES);
           }
         } catch (error) {
-          this.logger.logError(`Error processing batch ${Math.floor(i/BATCH_SIZE) + 1}: ${error.message}`);
+          this.logger.logError(`❌ Error processing batch ${batchNum}: ${error.message}`);
           batch.forEach(sku => {
             results.errors.push(`Failed to sync inventory for SKU ${sku}: ${error.message}`);
             // Don't increment total for failed SKUs - only count successful ones
@@ -48,10 +50,141 @@ class InventoryProcessor {
         }
       }
 
-      this.logger.logInfo(`Inventory sync completed: ${results.success.length} successful, ${results.errors.length} failed`);
+      this.logger.logInfo(`🎉 Inventory sync completed: ${results.success.length} successful, ${results.errors.length} failed`);
       return results;
     } catch (error) {
       this.logger.logError(`Failed to process inventory sync: ${error.message}`, 'error', error);
+      throw error;
+    }
+  }
+
+  // New bulk sync method for better efficiency
+  async processBulkInventorySync() {
+    this.logger.logInfo('🚀 Starting bulk inventory sync process');
+    this.logger.logInfo(`📍 Target location: ${this.retailer.targetLocationId}`);
+    const results = { total: 0, success: [], errors: [], audit: { wrongLocation: [] }, checked: [] };
+    
+    try {
+      // Step 1: Get SKUs to sync (either all or test SKUs)
+      let skus;
+      if (process.env.TEST_SKUS) {
+        // Test mode: use specific SKUs for testing
+        skus = process.env.TEST_SKUS.split(',').map(sku => sku.trim());
+        this.logger.logInfo(`🧪 TEST MODE: Using ${skus.length} test SKUs`);
+      } else {
+        // Production mode: get all SKUs from retailer store
+        skus = await this.fetchAllSkus();
+        this.logger.logInfo(`📦 Found ${skus.length} SKUs to sync`);
+      }
+      
+      // Step 2: Bulk fetch all LGL inventory in one query
+      this.logger.logInfo('🔍 Fetching LGL inventory data...');
+      const lglInventory = await this.bulkFetchInventory(this.lglClient, skus);
+      
+      // Step 3: Bulk fetch all retailer inventory in one query  
+      this.logger.logInfo('🏪 Fetching retailer inventory data...');
+      const retailerInventory = await this.bulkFetchInventory(this.retailClient, skus);
+      
+      // If bulk fetch didn't work, try individual queries for test mode
+      if (process.env.TEST_SKUS && (Object.keys(lglInventory).length === 0 || Object.keys(retailerInventory).length === 0)) {
+        this.logger.logInfo('⚠️  Bulk query returned no results, trying individual SKU queries...');
+        const lglInventoryIndividual = {};
+        const retailerInventoryIndividual = {};
+        
+        for (const sku of skus) {
+          // Get LGL inventory for this SKU
+          const lglVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.lglClient, sku);
+          if (lglVariant && lglVariant.inventoryLevels.length > 0) {
+            const level = lglVariant.inventoryLevels[0];
+            const available = level.quantities.find(q => q.name === "available");
+            lglInventoryIndividual[sku] = {
+              inventoryItemId: lglVariant.inventoryItemId,
+              locationId: level.location.id,
+              quantity: available ? available.quantity : 0
+            };
+          }
+          
+          // Get retailer inventory for this SKU
+          const retailerVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.retailClient, sku);
+          if (retailerVariant && retailerVariant.inventoryLevels.length > 0) {
+            const targetLocationId = this.retailer.targetLocationId;
+            const targetLevel = retailerVariant.inventoryLevels.find(l => l.location.id === targetLocationId);
+            if (targetLevel) {
+              const available = targetLevel.quantities.find(q => q.name === "available");
+              retailerInventoryIndividual[sku] = {
+                inventoryItemId: retailerVariant.inventoryItemId,
+                locationId: targetLevel.location.id,
+                quantity: available ? available.quantity : 0
+              };
+            } else {
+              // SKU exists but not in target location - add to audit
+              const otherLevels = retailerVariant.inventoryLevels.filter(l => l.location.id !== targetLocationId);
+              if (otherLevels.length > 0) {
+                results.audit.wrongLocation.push({
+                  sku,
+                  currentLocation: otherLevels[0].location.id,
+                  currentQuantity: otherLevels[0].quantities.find(q => q.name === "available")?.quantity || 0,
+                  targetLocation: targetLocationId
+                });
+              }
+            }
+          }
+        }
+        
+        // Use individual results if bulk failed
+        if (Object.keys(lglInventoryIndividual).length > 0) {
+          Object.assign(lglInventory, lglInventoryIndividual);
+        }
+        if (Object.keys(retailerInventoryIndividual).length > 0) {
+          Object.assign(retailerInventory, retailerInventoryIndividual);
+        }
+      }
+      
+      // Step 4: Prepare bulk updates
+      this.logger.logInfo('⚙️  Preparing inventory updates...');
+      const updates = this.prepareBulkUpdates(lglInventory, retailerInventory);
+      
+      // Track SKUs that were checked but didn't need updates
+      for (const sku in retailerInventory) {
+        const lglData = lglInventory[sku];
+        const retailerData = retailerInventory[sku];
+        
+        if (lglData && retailerData) {
+          if (lglData.quantity === retailerData.quantity) {
+            // SKU was checked but quantities already matched
+            results.checked.push({
+              sku,
+              lglQuantity: lglData.quantity,
+              retailerQuantity: retailerData.quantity
+            });
+          }
+        }
+      }
+      
+      if (updates.length > 0) {
+        this.logger.logInfo(`🔄 Found ${updates.length} SKUs that need inventory updates`);
+        
+        // Step 5: Execute bulk updates
+        this.logger.logInfo('📤 Executing inventory updates...');
+        const updateResults = await this.executeBulkUpdates(updates);
+        
+        results.success = updateResults.success;
+        results.errors = updateResults.errors;
+        results.total = updates.length;
+      } else {
+        this.logger.logInfo('✅ All SKUs already have matching inventory levels');
+        results.total = Object.keys(retailerInventory).length;
+      }
+      
+      // Add audit results
+      if (results.audit.wrongLocation.length > 0) {
+        this.logger.logInfo(`⚠️  Found ${results.audit.wrongLocation.length} SKUs in wrong location`);
+      }
+      
+      this.logger.logInfo(`🎉 Inventory sync completed: ${results.success.length} updated, ${results.errors.length} failed, ${results.audit.wrongLocation.length} in wrong location, ${results.checked.length} already matched`);
+      return results;
+    } catch (error) {
+      this.logger.logError(`❌ Failed to process bulk inventory sync: ${error.message}`, 'error', error);
       throw error;
     }
   }
@@ -134,7 +267,7 @@ class InventoryProcessor {
     try {
       const delta = newQuantity - currentQuantity;
       if (delta === 0) {
-        this.logger.logInfo('Target inventory already matches source. No update needed.');
+        // Don't log when no change is needed to reduce noise
         return true;
       }
       
@@ -170,7 +303,6 @@ class InventoryProcessor {
         return false;
       }
       
-      this.logger.logInfo('Successfully updated inventory.');
       return true;
     } catch (error) {
       this.logger.logError(`Error updating target inventory: ${error.message}`);
@@ -180,12 +312,10 @@ class InventoryProcessor {
 
   async syncInventory(sku) {
     return this.retryWithBackoff(async () => {
-      this.logger.logInfo(`Starting inventory sync for SKU: ${sku}`);
-      
       // Get source inventory item and levels from LGL store
       const sourceVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.lglClient, sku);
       if (!sourceVariant) {
-        this.logger.logInfo('Failed to get LGL store inventory item');
+        this.logger.logInfo(`❌ SKU ${sku}: Not found in LGL store`);
         return;
       }
       
@@ -196,37 +326,29 @@ class InventoryProcessor {
       });
       
       if (!sourceLevel) {
-        this.logger.logInfo('Failed to find any inventory level with available quantity for LGL store SKU');
+        this.logger.logInfo(`❌ SKU ${sku}: No available inventory in LGL store`);
         return;
       }
       
       const sourceAvailable = sourceLevel.quantities.find(q => q.name === "available").quantity;
-      const sourceLocationId = sourceLevel.location.id;
-      this.logger.logInfo(`LGL store inventory for ${sku}: ${sourceAvailable} at location ${sourceLocationId}`);
       
       // Get target inventory item and levels from retailer store
       const targetVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.retailClient, sku);
       if (!targetVariant) {
-        this.logger.logInfo('Failed to get retailer store inventory item');
+        this.logger.logInfo(`❌ SKU ${sku}: Not found in retailer store`);
         return;
       }
       
-      // Debug: Log available locations in retailer store
-      this.logger.logInfo(`Available locations in retailer store for SKU ${sku}:`);
-      targetVariant.inventoryLevels.forEach(level => {
-        this.logger.logInfo(`  - ${level.location.id}: ${level.quantities.find(q => q.name === "available")?.quantity || 0}`);
-      });
+      // Find the specific target location configured in retailer settings
+      const targetLocationId = this.retailer.targetLocationId;
+      const targetLevel = targetVariant.inventoryLevels.find(l => l.location.id === targetLocationId);
       
-      // Use the first available location in the retailer store
-      const targetLevel = targetVariant.inventoryLevels[0];
       if (!targetLevel) {
-        this.logger.logInfo('No inventory levels found in retailer store');
+        this.logger.logInfo(`❌ SKU ${sku}: Target location ${targetLocationId} not found in retailer store`);
         return;
       }
       
-      const targetLocationId = targetLevel.location.id;
       const targetAvailable = targetLevel.quantities.find(q => q.name === "available")?.quantity ?? 0;
-      this.logger.logInfo(`Using retailer store location: ${targetLocationId} with current quantity: ${targetAvailable}`);
       
       // Update retailer store inventory to match LGL store
       const success = await this.updateTargetInventory(
@@ -237,9 +359,12 @@ class InventoryProcessor {
       );
       
       if (success) {
-        this.logger.logInfo(`Successfully synced inventory from LGL store to retailer store for SKU: ${sku}`);
+        if (sourceAvailable !== targetAvailable) {
+          this.logger.logInfo(`✅ SKU ${sku}: Updated ${targetAvailable} → ${sourceAvailable}`);
+        }
+        // Don't log when quantities already match to reduce noise
       } else {
-        this.logger.logInfo(`Failed to sync inventory from LGL store to retailer store for SKU: ${sku}`);
+        this.logger.logInfo(`❌ SKU ${sku}: Failed to update inventory`);
       }
     });
   }
@@ -263,6 +388,169 @@ class InventoryProcessor {
 
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async bulkFetchInventory(client, skus) {
+    const inventory = {};
+    const BATCH_SIZE = 100; // Process SKUs in batches for the query
+    
+    // Get the target location ID from retailer config
+    const targetLocationId = this.retailer.targetLocationId;
+    
+    for (let i = 0; i < skus.length; i += BATCH_SIZE) {
+      const batch = skus.slice(i, i + BATCH_SIZE);
+      const query = `
+        query getBulkInventory {
+          productVariants(first: 250, query: "sku:(${batch.join(' OR ')})\") {
+            edges {
+              node {
+                sku
+                inventoryItem {
+                  id
+                  inventoryLevels(first: 10) {
+                    edges {
+                      node {
+                        id
+                        location {
+                          id
+                        }
+                        quantities(names: ["available"]) {
+                          name
+                          quantity
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+      
+      try {
+        const response = await client.request(query);
+        const variants = response.productVariants?.edges || [];
+        
+        for (const edge of variants) {
+          const variant = edge.node;
+          const sku = variant.sku;
+          const inventoryItem = variant.inventoryItem;
+          
+          if (inventoryItem && inventoryItem.inventoryLevels?.edges?.length > 0) {
+            const level = inventoryItem.inventoryLevels.edges[0].node;
+            const available = level.quantities.find(q => q.name === "available");
+            
+            inventory[sku] = {
+              inventoryItemId: inventoryItem.id,
+              locationId: level.location.id,
+              quantity: available ? available.quantity : 0
+            };
+          }
+        }
+      } catch (error) {
+        this.logger.logError(`Error in bulk inventory fetch: ${error.message}`);
+      }
+    }
+    
+    return inventory;
+  }
+
+  prepareBulkUpdates(lglInventory, retailerInventory) {
+    const updates = [];
+    
+    for (const sku in retailerInventory) {
+      const lglData = lglInventory[sku];
+      const retailerData = retailerInventory[sku];
+      
+      if (lglData && retailerData) {
+        const lglQuantity = lglData.quantity;
+        const retailerQuantity = retailerData.quantity;
+        
+        if (lglQuantity !== retailerQuantity) {
+          updates.push({
+            sku,
+            inventoryItemId: retailerData.inventoryItemId,
+            locationId: retailerData.locationId,
+            currentQuantity: retailerQuantity,
+            newQuantity: lglQuantity,
+            delta: lglQuantity - retailerQuantity
+          });
+        }
+      }
+    }
+    
+    return updates;
+  }
+
+  async executeBulkUpdates(updates) {
+    const results = { success: [], errors: [] };
+    const BATCH_SIZE = 50; // Shopify bulk mutation limit
+    
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      const batch = updates.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i/BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(updates.length/BATCH_SIZE);
+      
+      this.logger.logInfo(`Processing bulk update batch ${batchNum}/${totalBatches} (${batch.length} updates)`);
+      
+      try {
+        const mutation = `
+          mutation bulkInventoryAdjust($input: [InventoryAdjustQuantitiesInput!]!) {
+            bulkInventoryAdjust(input: $input) {
+              inventoryAdjustments {
+                inventoryItemId
+                locationId
+                quantities {
+                  name
+                  quantity
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          }
+        `;
+        
+        const variables = {
+          input: batch.map(update => ({
+            reason: "correction",
+            name: "available",
+            changes: [{
+              inventoryItemId: update.inventoryItemId,
+              locationId: update.locationId,
+              delta: update.newQuantity - update.currentQuantity
+            }]
+          }))
+        };
+        
+        const result = await this.retailClient.graphql(mutation, variables);
+        
+        // Process results
+        result.bulkInventoryAdjust.inventoryAdjustments.forEach((adjustment, index) => {
+          const update = batch[index];
+          if (adjustment.userErrors.length > 0) {
+            results.errors.push(`Failed to sync SKU ${update.sku}: ${adjustment.userErrors[0].message}`);
+          } else {
+            results.success.push(update.sku);
+          }
+        });
+        
+        // Add delay between batches to respect rate limits
+        if (i + BATCH_SIZE < updates.length) {
+          await this.delay(200); // Shorter delay for bulk operations
+        }
+      } catch (error) {
+        this.logger.logError(`❌ Error processing bulk update batch ${batchNum}: ${error.message}`);
+        batch.forEach(update => {
+          results.errors.push(`Failed to sync SKU ${update.sku}: ${error.message}`);
+        });
+      }
+    }
+    
+    return results;
   }
 }
 

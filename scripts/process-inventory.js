@@ -23,7 +23,7 @@ function loadRetailers() {
 
 async function processInventorySync(retailers, config) {
   console.log('=== Processing Inventory Sync ===');
-  const results = { total: 0, success: [], errors: [] };
+  const results = { total: 0, success: [], errors: [], audit: { wrongLocation: [] }, checked: [] };
   
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.syncInventory) {
@@ -32,10 +32,40 @@ async function processInventorySync(retailers, config) {
     }
     try {
       const processor = new InventoryProcessor(retailer, config);
-      const inventoryResult = await processor.processInventorySync();
+      // Use the new bulk sync method for better efficiency
+      const inventoryResult = await processor.processBulkInventorySync();
       results.total += inventoryResult?.total || 0;
+      
+      // Convert success messages to the expected format
       if (inventoryResult?.success && inventoryResult.success.length > 0) {
-        results.success.push({ retailer: retailer.name, message: inventoryResult.success });
+        results.success.push({ 
+          retailer: retailer.name, 
+          message: inventoryResult.success.join(', ') 
+        });
+      }
+      
+      // Convert error messages to the expected format
+      if (inventoryResult?.errors && inventoryResult.errors.length > 0) {
+        results.errors.push({ 
+          retailer: retailer.name, 
+          message: inventoryResult.errors.join(', ') 
+        });
+      }
+      
+      // Include audit data for SKUs in wrong location
+      if (inventoryResult?.audit?.wrongLocation && inventoryResult.audit.wrongLocation.length > 0) {
+        results.audit.wrongLocation.push(...inventoryResult.audit.wrongLocation.map(item => ({
+          ...item,
+          retailer: retailer.name
+        })));
+      }
+      
+      // Include checked SKUs (those that were processed but didn't need updates)
+      if (inventoryResult?.checked && inventoryResult.checked.length > 0) {
+        results.checked.push(...inventoryResult.checked.map(item => ({
+          ...item,
+          retailer: retailer.name
+        })));
       }
     } catch (error) {
       console.error(`Failed to process inventory sync for ${retailer.name}:`, error);

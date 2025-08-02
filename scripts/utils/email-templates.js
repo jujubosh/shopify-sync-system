@@ -766,126 +766,162 @@ class EmailTemplates {
       ...(inventory.errors?.map(item => item.retailer) || [])
     ])];
     
+    // Group successful updates by retailer for cleaner display
+    const retailerSummaries = retailers.map(retailer => {
+      const successCount = inventory.success?.filter(item => item.retailer === retailer).length || 0;
+      const errorCount = inventory.errors?.filter(item => item.retailer === retailer).length || 0;
+      const totalCount = successCount + errorCount;
+      const retailerSuccessRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
+      
+      return {
+        name: retailer,
+        successCount,
+        errorCount,
+        totalCount,
+        successRate: retailerSuccessRate
+      };
+    });
+    
+    // Generate audit section if there are SKUs in wrong location
+    const auditSection = inventory.audit?.wrongLocation?.length > 0 ? `
+      <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+        <h3 style="color: #856404; margin: 0 0 10px 0;">⚠️ Inventory Location Audit</h3>
+        <p style="color: #856404; margin: 0 0 10px 0;">
+          <strong>${inventory.audit.wrongLocation.length} SKU(s) found in wrong location:</strong>
+        </p>
+        <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background-color: #f8f9fa;">
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">SKU</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Current Location</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Current Quantity</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Target Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inventory.audit.wrongLocation.map(item => `
+                <tr>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.sku}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.currentLocation}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.currentQuantity}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.targetLocation}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p style="color: #856404; margin: 10px 0 0 0; font-size: 12px;">
+          <em>These SKUs exist in the retailer store but are not in the configured target location. 
+          Consider moving them to the correct location for proper inventory sync.</em>
+        </p>
+      </div>
+    ` : '';
+    
+    // Generate checked section if there are SKUs that were checked but didn't need updates
+    const checkedSection = inventory.checked?.length > 0 ? `
+      <div style="margin: 20px 0; padding: 15px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px;">
+        <h3 style="color: #155724; margin: 0 0 10px 0;">✅ SKUs Checked (No Updates Needed)</h3>
+        <p style="color: #155724; margin: 0 0 10px 0;">
+          <strong>${inventory.checked.length} SKU(s) already have matching inventory levels:</strong>
+        </p>
+        <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background-color: #f8f9fa;">
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">SKU</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">LGL Quantity</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Retailer Quantity</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inventory.checked.map(item => `
+                <tr>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.sku}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.lglQuantity}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.retailerQuantity}</td>
+                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; color: #28a745; font-weight: bold;">✓ Matched</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p style="color: #155724; margin: 10px 0 0 0; font-size: 12px;">
+          <em>These SKUs were checked and found to already have matching inventory levels between LGL and retailer stores.</em>
+        </p>
+      </div>
+    ` : '';
+    
     return `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventory Sync Alert</title>
-    <style>
-        ${this.getBaseStyles()}
-        .header { 
-          background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); 
-        }
-        .stat-number { color: #ffc107; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <img src="${this.logoUrl}" alt="Live Good Logistics" class="logo">
-                <div class="header-text">
-                    <h1>Inventory Sync Alert</h1>
-                    <div class="subtitle">${totalInventory > 0 ? `${totalInventory} SKU(s) updated` : 'No inventory updates'}</div>
-                </div>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Inventory Sync Alert</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h1 style="color: #2c3e50; margin: 0 0 10px 0; font-size: 24px;">Live Good Logistics</h1>
+          <h2 style="color: #34495e; margin: 0 0 20px 0; font-size: 20px;">Inventory Sync Alert</h2>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #28a745;">
+              <div style="font-size: 24px; font-weight: bold; color: #28a745;">${inventory.success?.length || 0}</div>
+              <div style="font-size: 12px; color: #6c757d;">SUCCESSFUL</div>
             </div>
+            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #dc3545;">
+              <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${inventory.errors?.length || 0}</div>
+              <div style="font-size: 12px; color: #6c757d;">ERRORS</div>
+            </div>
+            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #007bff;">
+              <div style="font-size: 24px; font-weight: bold; color: #007bff;">${totalInventory}</div>
+              <div style="font-size: 12px; color: #6c757d;">TOTAL</div>
+            </div>
+            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #ffc107;">
+              <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${successRate}%</div>
+              <div style="font-size: 12px; color: #6c757d;">Success Rate</div>
+            </div>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <h3 style="margin: 0 0 10px 0; color: #495057;">Retailers Processed</h3>
+            ${retailerSummaries.map(retailer => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e9ecef;">
+                <span style="font-weight: bold;">${retailer.name}</span>
+                <span style="color: ${retailer.successRate === 100 ? '#28a745' : '#dc3545'}; font-weight: bold;">
+                  ${retailer.successRate}% success
+                </span>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <p style="margin: 0; color: #6c757d; font-size: 14px;">
+              <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
+            </p>
+          </div>
         </div>
         
-        <div class="content">
-            <div class="execution-time">
-                <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
-            </div>
-            
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number">${inventory.success?.length || 0}</div>
-                    <div class="stat-label">Successful</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${inventory.errors?.length || 0}</div>
-                    <div class="stat-label">Errors</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${totalInventory}</div>
-                    <div class="stat-label">Total</div>
-                </div>
-            </div>
-            
-            ${totalInventory > 0 ? `
-            <div style="margin: 20px 0;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;">
-                    <span>Success Rate</span>
-                    <span>${successRate}%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill progress-success" style="width: ${successRate}%;"></div>
-                </div>
-            </div>
-            ` : ''}
-            
-            ${retailers.length > 0 ? `
-            <div class="quick-stats">
-                <h3>Retailers Processed</h3>
-                <div class="quick-stats-grid">
-                    ${retailers.map(retailer => {
-                        const successCount = inventory.success?.filter(item => item.retailer === retailer).length || 0;
-                        const errorCount = inventory.errors?.filter(item => item.retailer === retailer).length || 0;
-                        const total = successCount + errorCount;
-                        const rate = total > 0 ? Math.round(successCount / total * 100) : 0;
-                        return `
-                        <div class="quick-stat">
-                            <div class="quick-stat-number">${total}</div>
-                            <div class="quick-stat-label">${retailer}</div>
-                            <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
-                                ${rate}% success
-                            </div>
-                        </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-            ` : ''}
-            
-            ${inventory.success?.length > 0 ? `
-            <div class="section">
-                <h3 style="margin-top: 0; color: #28a745;">Successful Updates (${inventory.success.length})</h3>
-                ${inventory.success.map(item => `
-                    <div class="success-item">
-                        <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
-                    </div>
-                `).join('')}
-            </div>
-            ` : ''}
-            
-            ${inventory.errors?.length > 0 ? `
-            <div class="section">
-                <h3 style="margin-top: 0; color: #dc3545;">Errors (${inventory.errors.length})</h3>
-                ${inventory.errors.map(item => `
-                    <div class="error-item">
-                        <strong>${item.retailer}:</strong> ${item.message}
-                        ${item.response ? `<br><small style="opacity: 0.8;">Response: ${JSON.stringify(item.response, null, 2)}</small>` : ''}
-                    </div>
-                `).join('')}
-            </div>
-            ` : ''}
-            
-            <div class="action-buttons">
-                <a href="mailto:admin@livegoodlogistics.com?subject=Inventory%20Sync%20Alert%20Follow-up" class="action-button">Contact Support</a>
-                <a href="https://livegoodlogistics.com" class="action-button secondary">Visit Website</a>
-            </div>
-        </div>
+        ${auditSection}
+        ${checkedSection}
         
-        <div class="footer">
-            <p>This is an automated notification from the Shopify Sync System</p>
-            <p><a href="mailto:admin@livegoodlogistics.com">Contact Support</a> | <a href="https://livegoodlogistics.com">Live Good Logistics</a></p>
-        </div>
-    </div>
-</body>
-</html>
-    `.trim();
+        ${inventory.errors?.length > 0 ? `
+          <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; padding: 15px; margin-top: 20px;">
+            <h3 style="color: #721c24; margin: 0 0 10px 0;">❌ Errors</h3>
+            <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 200px; overflow-y: auto;">
+              ${inventory.errors.map(error => `
+                <div style="padding: 5px 0; border-bottom: 1px solid #f8f9fa; font-family: monospace; font-size: 12px;">
+                  ${error}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </body>
+      </html>
+    `;
   }
 
   generateErrorTemplate(data) {

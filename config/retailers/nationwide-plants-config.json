@@ -24,6 +24,6 @@
     },
     "lookbackHours": 6,
     "fulfillmentLookbackHours": 24,
-    "syncInventory": false
+    "syncInventory": true
   }
 } 
