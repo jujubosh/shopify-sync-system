@@ -247,12 +247,6 @@ This script:
 
 The system includes automatic workflow updates to ensure the inventory workflow is always current:
 
-**GitHub Actions Automation** (`.github/workflows/update-workflow.yml`):
-- Automatically runs when retailer configs are pushed to Git
-- Updates inventory workflow with latest retailer options
-- Commits and pushes changes automatically
-- Comments on PRs when workflow is updated
-
 **Local Git Hooks**:
 ```bash
 # Setup automatic pre-commit hooks
@@ -268,6 +262,17 @@ The pre-commit hook:
 - Adds workflow changes to your commit
 - Can be bypassed with `git commit --no-verify`
 
+**Manual Workflow Updates**:
+```bash
+# Generate updated workflow with current retailers
+node scripts/generate-workflow-inputs.js
+
+# Commit the changes
+git add .github/workflows/inventory-sync.yml RETAILER_OPTIONS.md
+git commit -m "Update inventory workflow with latest retailers"
+git push
+```
+
 ## Adding New Retailers
 
 1. Create a new config file in `config/retailers/`:
@@ -277,9 +282,12 @@ The pre-commit hook:
 
 2. Update the configuration with the new retailer's details
 
-3. **For inventory sync workflow**: Generate updated workflow options:
+3. **Update inventory workflow** (if needed):
    ```bash
    node scripts/generate-workflow-inputs.js
+   git add .github/workflows/inventory-sync.yml RETAILER_OPTIONS.md
+   git commit -m "Update inventory workflow with latest retailers"
+   git push
    ```
 
 4. No code changes needed! The system will automatically pick up the new retailer.
@@ -433,8 +441,7 @@ test-ds-process/
 ├── .github/
 │   └── workflows/
 │       ├── shopify-sync.yml        # Main sync workflow (orders + fulfillments)
-│       ├── inventory-sync.yml      # Dedicated inventory workflow (auto-generated)
-│       └── update-workflow.yml     # Auto-update workflow when configs change
+│       └── inventory-sync.yml      # Dedicated inventory workflow (auto-generated)
 ├── logs/
 │   ├── retailer-specific/          # Per-retailer logs
 │   └── email-state.json           # Email system state
@@ -456,26 +463,4 @@ git add config/retailers/new-retailer.json
 git commit -m "Add retailer"  # Pre-commit hook runs automatically
 ```
 
-#### Troubleshooting GitHub Actions
-
-If you encounter permission errors with the automated workflow updates:
-
-**Option 1: Enable Workflow Permissions (Recommended)**
-1. Go to your repository → Settings → Actions → General
-2. Under "Workflow permissions", select "Read and write permissions"
-3. Check "Allow GitHub Actions to create and approve pull requests"
-4. Save the changes
-
-**Option 2: Use Personal Access Token**
-1. Create a Personal Access Token with `repo` permissions
-2. Add it as a repository secret named `PAT_TOKEN`
-3. Update the workflow to use `${{ secrets.PAT_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}`
-
-**Option 3: Manual Updates**
-If automation fails, you can manually update the workflow:
-```bash
-node scripts/generate-workflow-inputs.js
-git add .github/workflows/inventory-sync.yml RETAILER_OPTIONS.md
-git commit -m "Manual workflow update"
-git push
-```
+## Adding New Retailers
