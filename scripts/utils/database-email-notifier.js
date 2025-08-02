@@ -533,33 +533,24 @@ ${JSON.stringify(results.orders, null, 2)}
       return;
     }
 
-    // Check if there are any updates or audit findings
+    // Use the actual total from results, not calculated from arrays
     const totalInventory = results.inventory.total || 0;
-    const hasAuditFindings = results.inventory.audit?.wrongLocation?.length > 0;
-    
-    // Only send email if there are updates OR audit findings
-    if (totalInventory === 0 && !hasAuditFindings) {
+    if (totalInventory === 0) {
       return;
     }
 
     await this.logActivity('inventory', results, true);
 
-    // Calculate actual counts for subject and content
-    const successfulUpdates = results.inventory.success?.length || 0;
-    const errorUpdates = results.inventory.errors?.length || 0;
-    const totalUpdates = successfulUpdates + errorUpdates;
-    
-    const subject = `Inventory: ${totalUpdates} SKUs updated${hasAuditFindings ? `, ${results.inventory.audit.wrongLocation.length} in wrong location` : ''}`;
+    const subject = `Inventory: ${totalInventory} SKUs updated`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
 Inventory Sync Alert
 
 Time: ${timestamp}
-Total SKUs Updated: ${totalUpdates}
-Successful: ${successfulUpdates}
-Errors: ${errorUpdates}
-${hasAuditFindings ? `SKUs in Wrong Location: ${results.inventory.audit.wrongLocation.length}` : ''}
+Total SKUs: ${totalInventory}
+Successful: ${results.inventory.success?.length || 0}
+Errors: ${results.inventory.errors?.length || 0}
 
 Details:
 ${JSON.stringify(results.inventory, null, 2)}

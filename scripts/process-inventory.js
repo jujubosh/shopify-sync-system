@@ -23,7 +23,17 @@ function loadRetailers() {
 
 async function processInventorySync(retailers, config) {
   console.log('=== Processing Inventory Sync ===');
-  const results = { total: 0, success: [], errors: [], audit: { wrongLocation: [] }, checked: [] };
+  const results = { 
+    total: 0, 
+    successfulUpdates: 0,
+    locationMismatches: 0,
+    failures: 0,
+    details: {
+      successfulUpdates: [],
+      locationMismatches: [],
+      failures: []
+    }
+  };
   
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.syncInventory) {
@@ -32,44 +42,49 @@ async function processInventorySync(retailers, config) {
     }
     try {
       const processor = new InventoryProcessor(retailer, config);
-      // Use the new bulk sync method for better efficiency
-      const inventoryResult = await processor.processBulkInventorySync();
+      const inventoryResult = await processor.processInventorySync();
+      
+      // Aggregate results from this retailer
       results.total += inventoryResult?.total || 0;
+      results.successfulUpdates += inventoryResult?.successfulUpdates || 0;
+      results.locationMismatches += inventoryResult?.locationMismatches || 0;
+      results.failures += inventoryResult?.failures || 0;
       
-      // Convert success messages to the expected format
-      if (inventoryResult?.success && inventoryResult.success.length > 0) {
-        results.success.push({ 
-          retailer: retailer.name, 
-          message: inventoryResult.success.join(', ') 
+      // Add retailer-specific details
+      if (inventoryResult?.details?.successfulUpdates) {
+        inventoryResult.details.successfulUpdates.forEach(sku => {
+          results.details.successfulUpdates.push({ retailer: retailer.name, sku });
         });
       }
       
-      // Convert error messages to the expected format
-      if (inventoryResult?.errors && inventoryResult.errors.length > 0) {
-        results.errors.push({ 
-          retailer: retailer.name, 
-          message: inventoryResult.errors.join(', ') 
+      if (inventoryResult?.details?.locationMismatches) {
+        inventoryResult.details.locationMismatches.forEach(mismatch => {
+          results.details.locationMismatches.push({ 
+            retailer: retailer.name, 
+            sku: mismatch.sku,
+            expectedLocation: mismatch.expectedLocation,
+            actualLocation: mismatch.actualLocation
+          });
         });
       }
       
-      // Include audit data for SKUs in wrong location
-      if (inventoryResult?.audit?.wrongLocation && inventoryResult.audit.wrongLocation.length > 0) {
-        results.audit.wrongLocation.push(...inventoryResult.audit.wrongLocation.map(item => ({
-          ...item,
-          retailer: retailer.name
-        })));
-      }
-      
-      // Include checked SKUs (those that were processed but didn't need updates)
-      if (inventoryResult?.checked && inventoryResult.checked.length > 0) {
-        results.checked.push(...inventoryResult.checked.map(item => ({
-          ...item,
-          retailer: retailer.name
-        })));
+      if (inventoryResult?.details?.failures) {
+        inventoryResult.details.failures.forEach(failure => {
+          results.details.failures.push({ 
+            retailer: retailer.name, 
+            sku: failure.sku,
+            error: failure.error
+          });
+        });
       }
     } catch (error) {
       console.error(`Failed to process inventory sync for ${retailer.name}:`, error);
-      results.errors.push({ retailer: retailer.name, message: error.message });
+      results.failures++;
+      results.details.failures.push({ 
+        retailer: retailer.name, 
+        sku: 'N/A',
+        error: error.message 
+      });
     }
   }
   

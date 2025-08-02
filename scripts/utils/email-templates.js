@@ -757,170 +757,124 @@ class EmailTemplates {
 
   generateInventoryTemplate(data) {
     const { inventory, timestamp } = data;
-    const totalInventory = (inventory.success?.length || 0) + (inventory.errors?.length || 0);
-    const successRate = totalInventory > 0 ? Math.round((inventory.success?.length || 0) / totalInventory * 100) : 0;
+    
+    // Extract the new data structure
+    const successfulUpdates = inventory.successfulUpdates || 0;
+    const locationMismatches = inventory.locationMismatches || 0;
+    const failures = inventory.failures || 0;
+    const total = inventory.total || 0;
+    
+    const successRate = total > 0 ? Math.round((successfulUpdates / total) * 100) : 0;
     
     // Get unique retailers for better organization
     const retailers = [...new Set([
-      ...(inventory.success?.map(item => item.retailer) || []),
-      ...(inventory.errors?.map(item => item.retailer) || [])
+      ...(inventory.details?.successfulUpdates?.map(item => item.retailer) || []),
+      ...(inventory.details?.locationMismatches?.map(item => item.retailer) || []),
+      ...(inventory.details?.failures?.map(item => item.retailer) || [])
     ])];
     
-    // Group successful updates by retailer for cleaner display
+    // Group by retailer for cleaner display
     const retailerSummaries = retailers.map(retailer => {
-      const successCount = inventory.success?.filter(item => item.retailer === retailer).length || 0;
-      const errorCount = inventory.errors?.filter(item => item.retailer === retailer).length || 0;
-      const totalCount = successCount + errorCount;
-      const retailerSuccessRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
+      const successCount = inventory.details?.successfulUpdates?.filter(item => item.retailer === retailer).length || 0;
+      const mismatchCount = inventory.details?.locationMismatches?.filter(item => item.retailer === retailer).length || 0;
+      const failureCount = inventory.details?.failures?.filter(item => item.retailer === retailer).length || 0;
+      const retailerTotal = successCount + mismatchCount + failureCount;
+      const retailerSuccessRate = retailerTotal > 0 ? Math.round((successCount / retailerTotal) * 100) : 0;
       
       return {
         name: retailer,
         successCount,
-        errorCount,
-        totalCount,
+        mismatchCount,
+        failureCount,
+        total: retailerTotal,
         successRate: retailerSuccessRate
       };
     });
     
-    // Generate audit section if there are SKUs in wrong location
-    const auditSection = inventory.audit?.wrongLocation?.length > 0 ? `
-      <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
-        <h3 style="color: #856404; margin: 0 0 10px 0;">⚠️ Inventory Location Audit</h3>
-        <p style="color: #856404; margin: 0 0 10px 0;">
-          <strong>${inventory.audit.wrongLocation.length} SKU(s) found in wrong location:</strong>
-        </p>
-        <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <thead>
-              <tr style="background-color: #f8f9fa;">
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">SKU</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Current Location</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Current Quantity</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Target Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${inventory.audit.wrongLocation.map(item => `
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.sku}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.currentLocation}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.currentQuantity}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.targetLocation}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <p style="color: #856404; margin: 10px 0 0 0; font-size: 12px;">
-          <em>These SKUs exist in the retailer store but are not in the configured target location. 
-          Consider moving them to the correct location for proper inventory sync.</em>
-        </p>
-      </div>
-    ` : '';
-    
-    // Generate checked section if there are SKUs that were checked but didn't need updates
-    const checkedSection = inventory.checked?.length > 0 ? `
-      <div style="margin: 20px 0; padding: 15px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px;">
-        <h3 style="color: #155724; margin: 0 0 10px 0;">✅ SKUs Checked (No Updates Needed)</h3>
-        <p style="color: #155724; margin: 0 0 10px 0;">
-          <strong>${inventory.checked.length} SKU(s) already have matching inventory levels:</strong>
-        </p>
-        <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <thead>
-              <tr style="background-color: #f8f9fa;">
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">SKU</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">LGL Quantity</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Retailer Quantity</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${inventory.checked.map(item => `
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; font-family: monospace;">${item.sku}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.lglQuantity}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${item.retailerQuantity}</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #dee2e6; color: #28a745; font-weight: bold;">✓ Matched</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <p style="color: #155724; margin: 10px 0 0 0; font-size: 12px;">
-          <em>These SKUs were checked and found to already have matching inventory levels between LGL and retailer stores.</em>
-        </p>
-      </div>
-    ` : '';
-    
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Inventory Sync Alert</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
-        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-          <h1 style="color: #2c3e50; margin: 0 0 10px 0; font-size: 24px;">Live Good Logistics</h1>
-          <h2 style="color: #34495e; margin: 0 0 20px 0; font-size: 20px;">Inventory Sync Alert</h2>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h1 style="color: #2c3e50; margin: 0 0 20px 0; font-size: 24px; text-align: center;">
+            Live Good Logistics - Inventory Sync Alert
+          </h1>
           
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
-            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #28a745;">
-              <div style="font-size: 24px; font-weight: bold; color: #28a745;">${inventory.success?.length || 0}</div>
-              <div style="font-size: 12px; color: #6c757d;">SUCCESSFUL</div>
+          <div style="background-color: #ecf0f1; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
+            <h2 style="color: #34495e; margin: 0 0 15px 0; font-size: 18px;">📊 Summary</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+              <div style="text-align: center; padding: 10px; background-color: #d5f4e6; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #27ae60;">${successfulUpdates}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Successful Updates</div>
+              </div>
+              <div style="text-align: center; padding: 10px; background-color: #fdf2e9; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #e67e22;">${locationMismatches}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Location Mismatches</div>
+              </div>
             </div>
-            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #dc3545;">
-              <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${inventory.errors?.length || 0}</div>
-              <div style="font-size: 12px; color: #6c757d;">ERRORS</div>
-            </div>
-            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #007bff;">
-              <div style="font-size: 24px; font-weight: bold; color: #007bff;">${totalInventory}</div>
-              <div style="font-size: 12px; color: #6c757d;">TOTAL</div>
-            </div>
-            <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; border-left: 4px solid #ffc107;">
-              <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${successRate}%</div>
-              <div style="font-size: 12px; color: #6c757d;">Success Rate</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div style="text-align: center; padding: 10px; background-color: #fadbd8; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #e74c3c;">${failures}</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Failures</div>
+              </div>
+              <div style="text-align: center; padding: 10px; background-color: #ebf3fd; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #3498db;">${successRate}%</div>
+                <div style="font-size: 12px; color: #7f8c8d;">Success Rate</div>
+              </div>
             </div>
           </div>
           
-          <div style="background-color: white; padding: 15px; border-radius: 5px;">
-            <h3 style="margin: 0 0 10px 0; color: #495057;">Retailers Processed</h3>
+          <div style="margin-bottom: 25px;">
+            <h3 style="color: #34495e; margin: 0 0 15px 0; font-size: 16px;">🏪 Retailers Processed</h3>
             ${retailerSummaries.map(retailer => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e9ecef;">
-                <span style="font-weight: bold;">${retailer.name}</span>
-                <span style="color: ${retailer.successRate === 100 ? '#28a745' : '#dc3545'}; font-weight: bold;">
-                  ${retailer.successRate}% success
-                </span>
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 10px;">
+                <div style="font-weight: bold; color: #2c3e50; margin-bottom: 8px;">${retailer.name}</div>
+                <div style="font-size: 14px; color: #7f8c8d;">
+                  ${retailer.successCount} successful, ${retailer.mismatchCount} location mismatches, ${retailer.failureCount} failures
+                  <span style="color: ${retailer.successRate >= 90 ? '#27ae60' : retailer.successRate >= 70 ? '#f39c12' : '#e74c3c'}; font-weight: bold;">
+                    (${retailer.successRate}% success rate)
+                  </span>
+                </div>
               </div>
             `).join('')}
           </div>
           
-          <div style="background-color: white; padding: 15px; border-radius: 5px;">
-            <p style="margin: 0; color: #6c757d; font-size: 14px;">
-              <strong>Execution Time:</strong> ${new Date(timestamp).toLocaleString()}
+          ${locationMismatches > 0 ? `
+            <div style="margin-bottom: 25px;">
+              <h3 style="color: #e67e22; margin: 0 0 15px 0; font-size: 16px;">⚠️ Location Mismatches</h3>
+              <div style="background-color: #fdf2e9; padding: 15px; border-radius: 6px;">
+                <p style="margin: 0 0 10px 0; color: #d35400; font-weight: bold;">
+                  ${locationMismatches} SKU(s) have location mismatches between LGL and retailer stores.
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #7f8c8d;">
+                  These SKUs exist in both stores but are assigned to different inventory locations. 
+                  Manual review may be required to align location assignments.
+                </p>
+              </div>
+            </div>
+          ` : ''}
+          
+          ${failures > 0 ? `
+            <div style="margin-bottom: 25px;">
+              <h3 style="color: #e74c3c; margin: 0 0 15px 0; font-size: 16px;">❌ Failures</h3>
+              <div style="background-color: #fadbd8; padding: 15px; border-radius: 6px;">
+                <p style="margin: 0 0 10px 0; color: #c0392b; font-weight: bold;">
+                  ${failures} SKU(s) failed to sync properly.
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #7f8c8d;">
+                  Common causes: SKU not found in one of the stores, inventory level issues, or API errors.
+                  Check the logs for detailed error information.
+                </p>
+              </div>
+            </div>
+          ` : ''}
+          
+          <div style="text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #ecf0f1;">
+            <p style="margin: 0; font-size: 12px; color: #95a5a6;">
+              ⏱️ Execution Time: ${timestamp}<br>
+              Total SKUs Processed: ${total}
             </p>
           </div>
         </div>
-        
-        ${auditSection}
-        ${checkedSection}
-        
-        ${inventory.errors?.length > 0 ? `
-          <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; padding: 15px; margin-top: 20px;">
-            <h3 style="color: #721c24; margin: 0 0 10px 0;">❌ Errors</h3>
-            <div style="background-color: white; padding: 10px; border-radius: 3px; max-height: 200px; overflow-y: auto;">
-              ${inventory.errors.map(error => `
-                <div style="padding: 5px 0; border-bottom: 1px solid #f8f9fa; font-family: monospace; font-size: 12px;">
-                  ${error}
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-      </body>
-      </html>
+      </div>
     `;
   }
 
