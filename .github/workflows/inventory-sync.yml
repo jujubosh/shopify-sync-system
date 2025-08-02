@@ -13,7 +13,6 @@ on:
         options:
           - all
           - nationwide-plants-config
-          - store-1
           - test-store
 
 jobs:

@@ -1,13 +1,12 @@
 # Available Retailers for Inventory Sync
 
-This file is auto-generated from retailer configs. Last updated: 2025-08-02T21:34:07.904Z
+This file is auto-generated from retailer configs. Last updated: 2025-08-02T21:36:05.048Z
 
 ## Retailer Options
 
 | ID | Name | Inventory Sync Enabled |
 |----|------|----------------------|
 | `nationwide-plants-config` | Nationwide Plants | ❌ |
-| `store-1` | Test Retail Store | ❌ |
 | `test-store` | Test Retail Store | ❌ |
 
 ## Usage
