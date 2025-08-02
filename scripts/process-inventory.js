@@ -22,7 +22,7 @@ function loadRetailers() {
 }
 
 async function processInventorySync(retailers, config) {
-  console.log('=== Processing Inventory Sync ===');
+  console.log('Starting inventory sync...');
   const results = { 
     total: 0, 
     successfulUpdates: 0,
@@ -37,10 +37,12 @@ async function processInventorySync(retailers, config) {
   
   for (const retailer of retailers) {
     if (!retailer.settings.enabled || !retailer.settings.syncInventory) {
-      console.log(`Skipping ${retailer.name}: disabled or inventory sync disabled`);
+      console.log(`Skipping ${retailer.name} (disabled)`);
       continue;
     }
+    
     try {
+      console.log(`Processing ${retailer.name}...`);
       const processor = new InventoryProcessor(retailer, config);
       const inventoryResult = await processor.processInventorySync();
       
@@ -78,7 +80,7 @@ async function processInventorySync(retailers, config) {
         });
       }
     } catch (error) {
-      console.error(`Failed to process inventory sync for ${retailer.name}:`, error);
+      console.error(`Error processing ${retailer.name}: ${error.message}`);
       results.failures++;
       results.details.failures.push({ 
         retailer: retailer.name, 
@@ -101,12 +103,12 @@ async function main() {
   if (retailerId) {
     retailers = retailers.filter(r => r.id === retailerId);
     if (retailers.length === 0) {
-      console.error(`Retailer with ID '${retailerId}' not found`);
+      console.error(`Retailer '${retailerId}' not found`);
       process.exit(1);
     }
   }
   
-  console.log(`Processing inventory sync for ${retailers.length} retailer(s)`);
+  console.log(`Processing ${retailers.length} retailer(s)`);
   
   const startTime = new Date();
   const summary = {
@@ -126,7 +128,7 @@ async function main() {
     summary.duration = new Date() - startTime;
     summary.status = 'success';
     
-    console.log('Inventory sync completed successfully');
+    console.log('Inventory sync completed');
     
   } catch (error) {
     summary.endTime = new Date().toISOString();
@@ -134,7 +136,7 @@ async function main() {
     summary.status = 'error';
     summary.error = error.message;
     
-    console.error('Fatal error:', error);
+    console.error('Fatal error:', error.message);
     
     // Send error notification
     await emailNotifier.sendErrorNotification(error, {

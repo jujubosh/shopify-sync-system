@@ -13,7 +13,7 @@ class InventoryProcessor {
   }
 
   async processInventorySync() {
-    this.logger.logInfo('Starting inventory sync process');
+    this.logger.logInfo('Starting inventory sync');
     const results = { 
       total: 0, 
       successfulUpdates: 0,
@@ -28,16 +28,15 @@ class InventoryProcessor {
     
     try {
       const skus = await this.fetchAllSkus();
-      this.logger.logInfo(`Found ${skus.length} SKUs to sync`);
+      this.logger.logInfo(`Processing ${skus.length} SKUs`);
       
-      const BATCH_SIZE = 25; // Increased from 10
-      const DELAY_BETWEEN_BATCHES = 500; // Reduced from 2000ms
+      const BATCH_SIZE = 25;
+      const DELAY_BETWEEN_BATCHES = 500;
 
       for (let i = 0; i < skus.length; i += BATCH_SIZE) {
         const batch = skus.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i/BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(skus.length/BATCH_SIZE);
-        this.logger.logInfo(`Processing batch ${batchNum}/${totalBatches} (${batch.length} SKUs)`);
         
         const batchPromises = batch.map(sku => this.syncInventory(sku));
         const batchResults = await Promise.all(batchPromises);
@@ -81,10 +80,10 @@ class InventoryProcessor {
         }
       }
       
-      this.logger.logInfo(`Inventory sync completed. Successful updates: ${results.successfulUpdates}, Location mismatches: ${results.locationMismatches}, Failures: ${results.failures}`);
+      this.logger.logInfo(`Sync complete: ${results.successfulUpdates} updated, ${results.locationMismatches} location mismatches, ${results.failures} failures`);
       return results;
     } catch (error) {
-      this.logger.logError(`Error in inventory sync process: ${error.message}`);
+      this.logger.logError(`Sync error: ${error.message}`);
       throw error;
     }
   }
@@ -215,7 +214,6 @@ class InventoryProcessor {
       // Get source inventory item and levels from LGL store
       const sourceVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.lglClient, sku);
       if (!sourceVariant) {
-        this.logger.logInfo(`❌ SKU ${sku}: Not found in LGL store`);
         return { type: 'failure', sku: sku, error: 'Not found in LGL store' };
       }
       
@@ -226,24 +224,20 @@ class InventoryProcessor {
       });
       
       if (!sourceLevel) {
-        this.logger.logInfo(`❌ SKU ${sku}: No available inventory in LGL store`);
         return { type: 'failure', sku: sku, error: 'No available inventory in LGL store' };
       }
       
       const sourceAvailable = sourceLevel.quantities.find(q => q.name === "available").quantity;
-      this.logger.logInfo(`📦 SKU ${sku}: LGL Store Quantity: ${sourceAvailable}`);
       
       // Get target inventory item and levels from retailer store
       const targetVariant = await this.getProductVariantAndInventoryItemIdAndLevels(this.retailClient, sku);
       if (!targetVariant) {
-        this.logger.logInfo(`❌ SKU ${sku}: Not found in retailer store`);
         return { type: 'failure', sku: sku, error: 'Not found in retailer store' };
       }
       
       // Use the first available location in the retailer store
       const targetLevel = targetVariant.inventoryLevels[0];
       if (!targetLevel) {
-        this.logger.logInfo(`❌ SKU ${sku}: No inventory levels in retailer store`);
         return { type: 'failure', sku: sku, error: 'No inventory levels in retailer store' };
       }
       
@@ -251,16 +245,8 @@ class InventoryProcessor {
       const targetAvailable = targetLevel.quantities.find(q => q.name === "available")?.quantity ?? 0;
       const expectedRetailerLocationId = this.retailer.targetLocationId;
       
-      this.logger.logInfo(`🏪 SKU ${sku}: Retailer Store Quantity: ${targetAvailable}`);
-      this.logger.logInfo(`📍 SKU ${sku}: Retailer Location: ${targetLocationId}`);
-      this.logger.logInfo(`🎯 SKU ${sku}: Expected Location: ${expectedRetailerLocationId}`);
-      
       // Check if the SKU is in the correct location within the retailer store
-      // Use the retailer's configured targetLocationId instead of comparing with LGL store location
       if (targetLocationId !== expectedRetailerLocationId) {
-        this.logger.logInfo(`⚠️ SKU ${sku}: Location mismatch in retailer store - Expected: ${expectedRetailerLocationId}, Actual: ${targetLocationId}`);
-        this.logger.logInfo(`📊 SKU ${sku}: Quantity comparison: ${targetAvailable} (retailer) vs ${sourceAvailable} (LGL)`);
-        this.logger.logInfo(`🔄 SKU ${sku}: Would update to: ${sourceAvailable} (if location was correct)`);
         return { 
           type: 'location_mismatch', 
           sku: sku, 
@@ -268,9 +254,6 @@ class InventoryProcessor {
           actualLocation: targetLocationId 
         };
       }
-      
-      this.logger.logInfo(`✅ SKU ${sku}: Location match - SKU in correct location`);
-      this.logger.logInfo(`📊 SKU ${sku}: Quantity comparison: ${targetAvailable} (retailer) vs ${sourceAvailable} (LGL)`);
       
       // Update retailer store inventory to match LGL store
       const success = await this.updateTargetInventory(
@@ -281,16 +264,8 @@ class InventoryProcessor {
       );
       
       if (success) {
-        if (sourceAvailable !== targetAvailable) {
-          this.logger.logInfo(`🔄 SKU ${sku}: UPDATE NEEDED: ${targetAvailable} → ${sourceAvailable}`);
-          this.logger.logInfo(`✅ SKU ${sku}: Updated ${targetAvailable} → ${sourceAvailable}`);
-          return { type: 'successful_update', sku: sku };
-        } else {
-          this.logger.logInfo(`✅ SKU ${sku}: Quantities match - no update needed`);
-          return { type: 'successful_update', sku: sku };
-        }
+        return { type: 'successful_update', sku: sku };
       } else {
-        this.logger.logInfo(`❌ SKU ${sku}: Failed to update inventory`);
         return { type: 'failure', sku: sku, error: 'Failed to update inventory' };
       }
     });
