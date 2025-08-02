@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { OrderProcessor } = require('./utils/order-processor');
 const { FulfillmentProcessor } = require('./utils/fulfillment-processor');
-const { InventoryProcessor } = require('./utils/inventory-processor');
 const { DatabaseEmailNotifier } = require('./utils/database-email-notifier');
 
 function loadConfig() {
@@ -73,33 +72,8 @@ async function processFulfillments(retailers, config) {
   return results;
 }
 
-async function processInventorySync(retailers, config) {
-  console.log('=== Processing Inventory Sync ===');
-  const results = { total: 0, success: [], errors: [] };
-  
-  for (const retailer of retailers) {
-    if (!retailer.settings.enabled || !retailer.settings.syncInventory) {
-      console.log(`Skipping ${retailer.name}: disabled or inventory sync disabled`);
-      continue;
-    }
-    try {
-      const processor = new InventoryProcessor(retailer, config);
-      const inventoryResult = await processor.processInventorySync();
-      results.total += inventoryResult?.total || 0;
-      if (inventoryResult?.success && inventoryResult.success.length > 0) {
-        results.success.push({ retailer: retailer.name, message: inventoryResult.success });
-      }
-    } catch (error) {
-      console.error(`Failed to process inventory sync for ${retailer.name}:`, error);
-      results.errors.push({ retailer: retailer.name, message: error.message });
-    }
-  }
-  
-  return results;
-}
-
 async function main() {
-  const operation = process.argv[2] || 'all'; // 'orders', 'fulfillments', 'inventory', or 'all'
+  const operation = process.argv[2] || 'all'; // 'orders', 'fulfillments', or 'all'
   const retailerId = process.env.RETAILER_ID;
   
   const config = loadConfig();
@@ -136,15 +110,9 @@ async function main() {
         // Send fulfillment-specific alert
         await emailNotifier.sendFulfillmentAlert(summary.results);
         break;
-      case 'inventory':
-        summary.results.inventory = await processInventorySync(retailers, config);
-        // Send inventory-specific alert
-        await emailNotifier.sendInventoryAlert(summary.results);
-        break;
       case 'all':
         summary.results.fulfillments = await processFulfillments(retailers, config);
         summary.results.orders = await processOrders(retailers, config);
-        summary.results.inventory = await processInventorySync(retailers, config);
         
         // Debug logging to see the exact structure
         console.log('DEBUG: Orders results structure:', JSON.stringify(summary.results.orders, null, 2));
@@ -155,10 +123,9 @@ async function main() {
         // Send individual alerts for each operation
         await emailNotifier.sendFulfillmentAlert(summary.results);
         await emailNotifier.sendOrderAlert(summary.results);
-        await emailNotifier.sendInventoryAlert(summary.results);
         break;
       default:
-        console.error('Invalid operation. Use: orders, fulfillments, inventory, or all');
+        console.error('Invalid operation. Use: orders, fulfillments, or all');
         process.exit(1);
     }
     

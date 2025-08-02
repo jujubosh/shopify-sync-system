@@ -158,6 +158,18 @@ node scripts/process-all.js inventory
 RETAILER_ID=retailer-name node scripts/process-all.js all
 ```
 
+### Dedicated Inventory Processing
+
+The inventory sync has been separated into its own dedicated workflow for better performance and independent scheduling:
+
+```bash
+# Process all retailers with inventory sync enabled
+node scripts/process-inventory.js
+
+# Process specific retailer
+RETAILER_ID=retailer-name node scripts/process-inventory.js
+```
+
 ### Email System Testing
 
 ```bash
@@ -170,6 +182,133 @@ node scripts/test-email-notifications.js --debug
 # Manual reset if needed
 node scripts/test-email-notifications.js --reset
 ```
+
+## GitHub Actions Workflows
+
+The system includes automated GitHub Actions workflows for continuous processing:
+
+### Main Sync Workflow (`shopify-sync.yml`)
+- **Schedule**: Runs every 10 minutes
+- **Operations**: Orders and fulfillments
+- **Manual trigger**: Available for specific operations
+- **Logs**: Uploaded as artifacts for debugging
+
+### Inventory Sync Workflow (`inventory-sync.yml`)
+- **Schedule**: Runs every 5 minutes (independent of main sync)
+- **Operations**: Inventory synchronization only
+- **Manual trigger**: Available with optional retailer filtering
+- **Features**:
+  - Processes all retailers with inventory sync enabled
+  - Optional retailer-specific processing
+  - Separate logging and error handling
+  - Independent email notifications
+  - **Dynamic retailer options**: Automatically generated from config files
+
+#### Manual Trigger Options
+
+**Process all retailers:**
+```bash
+# Trigger via GitHub UI or API
+# Select "all" from the retailer dropdown
+```
+
+**Process specific retailer:**
+```bash
+# Trigger via GitHub UI or API
+# Select specific retailer from dropdown (e.g., "test-store", "nationwide-plants-config")
+```
+
+**Available retailers:**
+- `test-store` - Test Retail Store
+- `nationwide-plants-config` - Nationwide Plants
+
+#### Dynamic Workflow Generation
+
+The inventory workflow options are automatically generated from retailer configs:
+
+```bash
+# Generate updated workflow with current retailers
+node scripts/generate-workflow-inputs.js
+```
+
+This script:
+- Reads all retailer configs from `config/retailers/`
+- Generates updated workflow YAML with current retailer options
+- Creates documentation file (`RETAILER_OPTIONS.md`) with current status
+- Should be run whenever new retailers are added
+
+**Adding new retailers:**
+1. Add retailer config file to `config/retailers/`
+2. Run `node scripts/generate-workflow-inputs.js`
+3. Commit the updated workflow file
+4. The new retailer will appear in the GitHub UI dropdown
+
+#### Automated Workflow Updates
+
+The system includes automatic workflow updates to ensure the inventory workflow is always current:
+
+**GitHub Actions Automation** (`.github/workflows/update-workflow.yml`):
+- Automatically runs when retailer configs are pushed to Git
+- Updates inventory workflow with latest retailer options
+- Commits and pushes changes automatically
+- Comments on PRs when workflow is updated
+
+**Local Git Hooks**:
+```bash
+# Setup automatic pre-commit hooks
+./scripts/setup-git-hooks.sh
+
+# Manual pre-commit check
+./scripts/pre-commit-hook.sh
+```
+
+The pre-commit hook:
+- Checks if retailer configs have changed
+- Automatically updates workflow if needed
+- Adds workflow changes to your commit
+- Can be bypassed with `git commit --no-verify`
+
+## Adding New Retailers
+
+1. Create a new config file in `config/retailers/`:
+   ```bash
+   cp config/retailers/test-store.json config/retailers/new-retailer.json
+   ```
+
+2. Update the configuration with the new retailer's details
+
+3. **For inventory sync workflow**: Generate updated workflow options:
+   ```bash
+   node scripts/generate-workflow-inputs.js
+   ```
+
+4. No code changes needed! The system will automatically pick up the new retailer.
+
+### Dynamic Workflow Generation
+
+The inventory sync workflow uses dynamic retailer options generated from config files:
+
+```bash
+# Generate updated workflow with current retailers
+node scripts/generate-workflow-inputs.js
+```
+
+This creates:
+- Updated `.github/workflows/inventory-sync.yml` with current retailer options
+- `RETAILER_OPTIONS.md` with current retailer status and documentation
+
+**Workflow:**
+1. Add retailer config file to `config/retailers/`
+2. Run `node scripts/generate-workflow-inputs.js`
+3. Commit the updated workflow file
+4. The new retailer will appear in GitHub UI dropdown options
+
+### Workflow Features
+- **Independent scheduling**: Inventory sync runs separately from main sync
+- **Error notifications**: Slack alerts on failures
+- **Log retention**: 7-day log retention for debugging
+- **Environment variables**: Secure secret management
+- **Retry logic**: Built-in error handling and retries
 
 ## DigitalOcean Functions Deployment
 
@@ -276,8 +415,13 @@ test-ds-process/
 │       ├── test-store.json         # Retailer configurations
 │       └── new-retailer.json       # Add more retailers here
 ├── scripts/
-│   ├── process-all.js              # Main local script
+│   ├── process-all.js              # Main local script (orders + fulfillments)
+│   ├── process-inventory.js        # Dedicated inventory processing
+│   ├── generate-workflow-inputs.js # Dynamic workflow generation
+│   ├── setup-git-hooks.sh         # Git hooks setup script
+│   ├── pre-commit-hook.sh         # Pre-commit hook for workflow updates
 │   ├── test-email-notifications.js # Email testing
+│   ├── test-inventory-workflow.js  # Inventory workflow testing
 │   └── utils/
 │       ├── shopify-client.js       # API utilities
 │       ├── logger.js               # Logging utilities
@@ -286,105 +430,18 @@ test-ds-process/
 │       ├── inventory-processor.js  # Inventory sync logic
 │       ├── email-notifier.js       # Email notification system
 │       └── email-templates.js      # Email template system
+├── .github/
+│   └── workflows/
+│       ├── shopify-sync.yml        # Main sync workflow (orders + fulfillments)
+│       ├── inventory-sync.yml      # Dedicated inventory workflow (auto-generated)
+│       └── update-workflow.yml     # Auto-update workflow when configs change
 ├── logs/
 │   ├── retailer-specific/          # Per-retailer logs
 │   └── email-state.json           # Email system state
+├── RETAILER_OPTIONS.md            # Auto-generated retailer documentation
 ├── do-import-orders.js             # DigitalOcean Function handler
 ├── project.yml                     # DigitalOcean Functions config
 ├── README.md                       # This file
 ├── EMAIL_SYSTEM.md                 # Email system documentation
 └── package.json
 ```
-
-### Core Components
-
-#### Processors
-- **OrderProcessor**: Handles order import from source stores
-- **FulfillmentProcessor**: Manages fulfillment pushback to source stores
-- **InventoryProcessor**: Synchronizes inventory across stores
-
-#### Email System
-- **EmailNotifier**: Manages email sending and rate limiting
-- **EmailTemplates**: Generates beautiful HTML email templates
-
-#### Utilities
-- **ShopifyClient**: API client for Shopify operations
-- **Logger**: Comprehensive logging system
-
-## Adding New Retailers
-
-1. Create a new config file in `config/retailers/`:
-   ```bash
-   cp config/retailers/test-store.json config/retailers/new-retailer.json
-   ```
-
-2. Update the configuration with the new retailer's details
-
-3. No code changes needed! The system will automatically pick up the new retailer.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **API Token Issues**: Ensure all API tokens have the necessary permissions
-2. **Location ID**: Verify the target location ID is correct for each retailer
-3. **Lookback Windows**: Adjust lookback hours if orders aren't being found
-4. **Email Notifications**: Check email configuration and Mailgun credentials
-5. **Rate Limiting**: Reset email state if rate limiting is too restrictive
-
-### Debug Mode
-
-For debugging, you can run with verbose logging by modifying the logger level in the config.
-
-### Email System Issues
-
-```bash
-# Reset email state
-rm logs/email-state.json
-
-# Or use the method
-emailNotifier.resetEmailState();
-```
-
-### Logs
-
-Check retailer-specific logs in `logs/retailer-specific/` for detailed error information.
-
-## Performance
-
-### Optimizations
-- **Batch processing**: Efficient handling of large datasets
-- **Rate limiting**: Prevents API throttling
-- **Retry logic**: Handles transient failures gracefully
-- **Caching**: Reduces redundant API calls
-- **Parallel processing**: Concurrent operations where possible
-
-### Monitoring
-- **Success rates**: Track operation success rates
-- **Duration tracking**: Monitor processing times
-- **Error rates**: Identify and resolve issues quickly
-- **Activity patterns**: Optimize scheduling based on usage
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## Support
-
-For issues or questions:
-- Check the logs in the `logs/` directory
-- Review the email system documentation in `EMAIL_SYSTEM.md`
-- Test email notifications with `scripts/test-email-notifications.js`
-- Monitor email statistics and activity tracking
-
-## License
-
-This project is open source software.
-
----
-
-**Status**: Production Ready - Comprehensive Shopify sync system with advanced email notifications and monitoring. 

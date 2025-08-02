@@ -1,23 +1,22 @@
-name: Shopify Sync System
+name: Inventory Sync
 
 on:
   schedule:
-    # Run full sync every 30 minutes
-    - cron: '*/10 * * * *'
+    # Run inventory sync every 5 minutes
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
-      operation:
-        description: 'Operation to run'
-        required: true
-        default: 'all'
+      retailer:
+        description: 'Specific retailer to process (leave empty for all)'
+        required: false
         type: choice
         options:
           - all
-          - fulfillments
-          - orders
+          - nationwide-plants-config
+          - test-store
 
 jobs:
-  sync:
+  inventory-sync:
     runs-on: ubuntu-latest
     
     steps:
@@ -36,7 +35,7 @@ jobs:
     - name: Create logs directory
       run: mkdir -p logs
       
-    - name: Run Shopify Sync
+    - name: Run Inventory Sync
       env:
         MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
@@ -48,22 +47,22 @@ jobs:
         LOG_LEVEL: info
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        RETAILER_ID: ${{ github.event.inputs.retailer != 'all' && github.event.inputs.retailer || '' }}
       run: |
-        # Always run the full sync operation
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          OPERATION="${{ github.event.inputs.operation }}"
+        echo "Running inventory sync"
+        if [ -n "$RETAILER_ID" ]; then
+          echo "Processing specific retailer: $RETAILER_ID"
         else
-          OPERATION="all"
+          echo "Processing all retailers with inventory sync enabled"
         fi
         
-        echo "Running operation: $OPERATION"
-        node scripts/process-all.js $OPERATION
+        node scripts/process-inventory.js
         
     - name: Upload logs
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: sync-logs-${{ github.run_id }}
+        name: inventory-sync-logs-${{ github.run_id }}
         path: logs/
         retention-days: 7
         
@@ -74,4 +73,4 @@ jobs:
         status: ${{ job.status }}
         channel: '#alerts'
       env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
