@@ -7,6 +7,10 @@ on:
       - 'scripts/generate-workflow-inputs.js'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update-workflow:
     runs-on: ubuntu-latest
@@ -41,14 +45,18 @@ jobs:
           echo "No changes detected"
         fi
         
+    - name: Setup Git for automated commits
+      if: steps.check-changes.outputs.changes == 'true'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
     - name: Commit and push changes
       if: steps.check-changes.outputs.changes == 'true'
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
         git add .github/workflows/inventory-sync.yml RETAILER_OPTIONS.md
-        git commit -m "Auto-update inventory workflow with latest retailer configs"
-        git push
+        git commit -m "Auto-update inventory workflow with latest retailer configs [skip ci]"
+        git push origin HEAD:${{ github.ref }}
         
     - name: Comment on PR
       if: github.event_name == 'pull_request' && steps.check-changes.outputs.changes == 'true'

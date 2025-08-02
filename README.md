@@ -445,3 +445,37 @@ test-ds-process/
 ├── EMAIL_SYSTEM.md                 # Email system documentation
 └── package.json
 ```
+
+**Local development:**
+```bash
+# Setup hooks
+./scripts/setup-git-hooks.sh
+
+# Normal workflow (hooks run automatically)
+git add config/retailers/new-retailer.json
+git commit -m "Add retailer"  # Pre-commit hook runs automatically
+```
+
+#### Troubleshooting GitHub Actions
+
+If you encounter permission errors with the automated workflow updates:
+
+**Option 1: Enable Workflow Permissions (Recommended)**
+1. Go to your repository → Settings → Actions → General
+2. Under "Workflow permissions", select "Read and write permissions"
+3. Check "Allow GitHub Actions to create and approve pull requests"
+4. Save the changes
+
+**Option 2: Use Personal Access Token**
+1. Create a Personal Access Token with `repo` permissions
+2. Add it as a repository secret named `PAT_TOKEN`
+3. Update the workflow to use `${{ secrets.PAT_TOKEN }}` instead of `${{ secrets.GITHUB_TOKEN }}`
+
+**Option 3: Manual Updates**
+If automation fails, you can manually update the workflow:
+```bash
+node scripts/generate-workflow-inputs.js
+git add .github/workflows/inventory-sync.yml RETAILER_OPTIONS.md
+git commit -m "Manual workflow update"
+git push
+```
