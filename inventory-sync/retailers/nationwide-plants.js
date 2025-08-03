@@ -2,6 +2,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
+const { DatabaseEmailNotifier } = require('../../scripts/utils/database-email-notifier');
 
 // Load environment variables from .env.local if it exists
 const envPath = path.join(process.cwd(), '.env.local');
@@ -536,6 +537,41 @@ async function main(args) {
                 });
         }
         
+        // Send email notification
+        try {
+            const globalConfig = loadGlobalConfig();
+            if (globalConfig) {
+                const emailNotifier = new DatabaseEmailNotifier(globalConfig);
+                
+                // Convert results to the format expected by email notifier
+                const emailResults = {
+                    inventory: {
+                        total: results.processed,
+                        successfulUpdates: results.updated,
+                        locationMismatches: 0, // This script doesn't track location mismatches
+                        failures: results.failed,
+                        details: {
+                            successfulUpdates: results.updated > 0 ? [{ retailer: 'Nationwide Plants', sku: 'Multiple SKUs' }] : [],
+                            locationMismatches: [],
+                            failures: results.errors.map(error => ({
+                                retailer: 'Nationwide Plants',
+                                sku: error.sku || 'Unknown',
+                                error: error.error
+                            }))
+                        }
+                    }
+                };
+                
+                log('📧 Sending inventory sync email notification...');
+                await emailNotifier.sendInventoryAlert({ inventory: emailResults.inventory });
+                log('✅ Email notification sent successfully');
+            } else {
+                log('⚠️  No global config found, skipping email notification');
+            }
+        } catch (emailError) {
+            log(`❌ Failed to send email notification: ${emailError.message}`, 'error');
+        }
+        
         return {
             statusCode: 200,
             body: {
@@ -547,6 +583,25 @@ async function main(args) {
     } catch (error) {
         const duration = Date.now() - startTime;
         log(`Error in sync process after ${duration}ms: ${error.message}`, 'error');
+        
+        // Send error notification email
+        try {
+            const globalConfig = loadGlobalConfig();
+            if (globalConfig) {
+                const emailNotifier = new DatabaseEmailNotifier(globalConfig);
+                log('📧 Sending error notification email...');
+                await emailNotifier.sendErrorNotification(error, {
+                    operation: 'inventory',
+                    retailer: 'Nationwide Plants'
+                });
+                log('✅ Error notification email sent successfully');
+            } else {
+                log('⚠️  No global config found, skipping error email notification');
+            }
+        } catch (emailError) {
+            log(`❌ Failed to send error notification email: ${emailError.message}`, 'error');
+        }
+        
         return {
             statusCode: 500,
             body: {
