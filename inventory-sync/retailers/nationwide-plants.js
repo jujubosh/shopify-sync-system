@@ -229,9 +229,27 @@ async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
             variables: { sku: `sku:${sku}` }
         });
         
+        // Check if response has the expected structure
+        if (!response.data || !response.data.data) {
+            log(`Invalid API response for SKU ${sku}: ${JSON.stringify(response.data)}`, 'error');
+            return null;
+        }
+        
+        // Check if productVariants exists
+        if (!response.data.data.productVariants) {
+            log(`No productVariants in response for SKU ${sku}: ${JSON.stringify(response.data.data)}`, 'error');
+            return null;
+        }
+        
         const variant = response.data.data.productVariants.edges[0]?.node;
         if (!variant) {
             log(`No variant found for SKU: ${sku}`, 'warn');
+            return null;
+        }
+        
+        // Check if inventoryItem exists
+        if (!variant.inventoryItem) {
+            log(`No inventory item for SKU ${sku}`, 'warn');
             return null;
         }
         
@@ -241,8 +259,23 @@ async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
             inventoryLevels: variant.inventoryItem.inventoryLevels.edges.map(e => e.node)
         };
     } catch (error) {
-        log(`Error getting product variant for SKU ${sku}: ${error.message}`, 'error');
-        throw error;
+        // Handle different types of errors
+        if (error.response) {
+            // API error with response
+            log(`API error for SKU ${sku}: ${error.response.status} - ${error.response.statusText}`, 'error');
+            if (error.response.data) {
+                log(`API error details: ${JSON.stringify(error.response.data)}`, 'error');
+            }
+        } else if (error.request) {
+            // Network error
+            log(`Network error for SKU ${sku}: ${error.message}`, 'error');
+        } else {
+            // Other error
+            log(`Error getting product variant for SKU ${sku}: ${error.message}`, 'error');
+        }
+        
+        // Return null instead of throwing to allow graceful handling
+        return null;
     }
 }
 
