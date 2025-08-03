@@ -12,14 +12,10 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(configFile, 'utf8'));
 }
 
-function loadRetailers() {
-  const retailersDir = path.join(__dirname, '../config/retailers');
-  const files = fs.readdirSync(retailersDir).filter(f => f.endsWith('.json'));
-  return files.map(file => {
-    const retailer = JSON.parse(fs.readFileSync(path.join(retailersDir, file), 'utf8'));
-    retailer.id = file.replace('.json', '');
-    return retailer;
-  });
+async function loadRetailers() {
+  const { RetailerService } = require('./utils/retailer-service');
+  const retailerService = new RetailerService();
+  return await retailerService.loadRetailers();
 }
 
 async function processOrders(retailers, config) {
@@ -77,7 +73,7 @@ async function main() {
   const retailerId = process.env.RETAILER_ID;
   
   const config = loadConfig();
-  let retailers = loadRetailers();
+  let retailers = await loadRetailers();
   const emailNotifier = new DatabaseEmailNotifier(config);
   
   if (retailerId) {

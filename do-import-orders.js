@@ -12,14 +12,28 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(configFile, 'utf8'));
 }
 
-function loadRetailers() {
-  const retailersDir = './config/retailers';
-  const files = fs.readdirSync(retailersDir).filter(f => f.endsWith('.json'));
-  return files.map(file => {
-    const retailer = JSON.parse(fs.readFileSync(path.join(retailersDir, file), 'utf8'));
-    retailer.id = file.replace('.json', '');
-    return retailer;
-  });
+async function loadRetailers() {
+  try {
+    // First try to load from database
+    const { RetailerService } = require('./scripts/utils/retailer-service');
+    const retailerService = new RetailerService();
+    const retailers = await retailerService.loadRetailers();
+    console.log(`Loaded ${retailers.length} retailers from database`);
+    return retailers;
+  } catch (error) {
+    console.warn('Failed to load retailers from database, falling back to config files:', error.message);
+    
+    // Fallback to config files
+    const retailersDir = './config/retailers';
+    const files = fs.readdirSync(retailersDir).filter(f => f.endsWith('.json'));
+    const retailers = files.map(file => {
+      const retailer = JSON.parse(fs.readFileSync(path.join(retailersDir, file), 'utf8'));
+      retailer.id = file.replace('.json', '');
+      return retailer;
+    });
+    console.log(`Loaded ${retailers.length} retailers from config files`);
+    return retailers;
+  }
 }
 
 async function processOrders(retailers, config) {
@@ -96,14 +110,14 @@ module.exports.main = async function main(args) {
   const retailerId = args.retailerId || args.retailer;
   
   const config = loadConfig();
-  let retailers = loadRetailers();
+  let retailers = await loadRetailers();
   
   if (retailerId) {
     retailers = retailers.filter(r => r.id === retailerId);
     if (retailers.length === 0) {
       return { 
         error: `Retailer with ID '${retailerId}' not found`,
-        availableRetailers: loadRetailers().map(r => r.id)
+        availableRetailers: (await loadRetailers()).map(r => r.id)
       };
     }
   }

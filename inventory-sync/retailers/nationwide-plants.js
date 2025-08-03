@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { DatabaseEmailNotifier } = require('../../scripts/utils/database-email-notifier');
+const { RetailerService } = require('../../scripts/utils/retailer-service');
 
 // Load environment variables from .env.local if it exists
 const envPath = path.join(process.cwd(), '.env.local');
@@ -17,18 +18,30 @@ const LOG_DIR = path.join(__dirname, '../../logs');
 const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config.json');
 
 // Load retailer configuration
-function loadRetailerConfig() {
+async function loadRetailerConfig() {
     try {
+        // First try to load from database
+        const retailerService = new RetailerService();
+        const retailer = await retailerService.loadRetailerById('nationwide-plants');
+        
+        if (!retailer.settings?.syncInventory) {
+            throw new Error('Inventory sync is not enabled for this retailer');
+        }
+        
+        console.log('Loaded retailer configuration from database');
+        return retailer;
+    } catch (error) {
+        console.warn('Failed to load from database, falling back to config file:', error.message);
+        
+        // Fallback to config file
         const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         
         if (!config.settings?.syncInventory) {
             throw new Error('Inventory sync is not enabled for this retailer');
         }
         
+        console.log('Loaded retailer configuration from config file');
         return config;
-    } catch (error) {
-        console.error('Failed to load retailer config:', error.message);
-        throw error;
     }
 }
 
@@ -47,17 +60,31 @@ function loadGlobalConfig() {
     }
 }
 
+// Resolve API token with fallback logic (same as ShopifyClient)
+function resolveApiToken(token) {
+    // If it's an environment variable placeholder, resolve it
+    if (token && token.startsWith('SHOPIFY_') && token.endsWith('_TOKEN')) {
+        return process.env[token] || token;
+    }
+    // Otherwise use the token directly (from database)
+    return token;
+}
+
 // Source store configuration (LGL - source of truth)
-const SOURCE_STORE = {
-    url: '12ffec-3.myshopify.com',
-    accessToken: process.env.SHOPIFY_LGL_TOKEN
-};
+function getSourceStoreConfig(globalConfig) {
+    return {
+        url: globalConfig?.lglStore?.domain || '12ffec-3.myshopify.com',
+        accessToken: resolveApiToken(globalConfig?.lglStore?.apiToken || process.env.SHOPIFY_LGL_TOKEN)
+    };
+}
 
 // Target store configuration (Nationwide Plants)
-const TARGET_STORE = {
-    url: '83e136-83.myshopify.com',
-    accessToken: process.env.SHOPIFY_NATIONWIDE_PLANTS_TOKEN
-};
+function getTargetStoreConfig(retailerConfig) {
+    return {
+        url: retailerConfig.domain,
+        accessToken: resolveApiToken(retailerConfig.apiToken)
+    };
+}
 
 
 
@@ -373,7 +400,7 @@ async function main(args) {
         log('Starting Nationwide Plants inventory sync...');
         
         // Load and validate configuration
-        const retailerConfig = loadRetailerConfig();
+        const retailerConfig = await loadRetailerConfig();
         log(`Loaded configuration for retailer: ${retailerConfig.name}`);
         
         // Validate target location ID from config
@@ -382,16 +409,23 @@ async function main(args) {
         }
         log(`Using target location ID: ${retailerConfig.targetLocationId}`);
         
-        // Validate environment variables
-        if (!SOURCE_STORE.accessToken) {
-            throw new Error('Missing SHOPIFY_LGL_TOKEN environment variable');
+        // Load global config and validate tokens
+        const globalConfig = loadGlobalConfig();
+        const sourceStoreConfig = getSourceStoreConfig(globalConfig);
+        const targetStoreConfig = getTargetStoreConfig(retailerConfig);
+
+        if (!sourceStoreConfig.accessToken) {
+            throw new Error('Missing source store API token (SHOPIFY_LGL_TOKEN or database token)');
         }
-        if (!TARGET_STORE.accessToken) {
-            throw new Error('Missing SHOPIFY_NATIONWIDE_PLANTS_TOKEN environment variable');
+        if (!targetStoreConfig.accessToken) {
+            throw new Error('Missing target store API token (SHOPIFY_NATIONWIDE_PLANTS_TOKEN or database token)');
         }
         
-        const sourceClient = getShopifyClient(SOURCE_STORE);
-        const targetClient = getShopifyClient(TARGET_STORE);
+        log(`Using source store: ${sourceStoreConfig.url}`);
+        log(`Using target store: ${targetStoreConfig.url}`);
+        
+        const sourceClient = getShopifyClient(sourceStoreConfig);
+        const targetClient = getShopifyClient(targetStoreConfig);
         
         // Fetch all SKUs
         log('Fetching all SKUs from source store...');
@@ -399,7 +433,6 @@ async function main(args) {
         log(`Found ${skus.length} SKUs. Starting batch sync...`);
         
         // Load global config for testing settings
-        const globalConfig = loadGlobalConfig();
         const BATCH_SIZE = globalConfig?.inventory?.batchSize || 5;
         const DELAY_BETWEEN_BATCHES = globalConfig?.inventory?.delayBetweenBatches || 3000;
         const MAX_RETRIES = globalConfig?.inventory?.maxRetries || 3;
