@@ -37,17 +37,20 @@ jobs:
       run: |
         if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
           echo "force_run=true" >> $GITHUB_OUTPUT
+          echo "enabled=true" >> $GITHUB_OUTPUT
           echo "Inventory sync forced to run"
         else
           # Check if inventory sync is enabled in config
-          if node -e "
+          ENABLED=$(node -e "
             const config = JSON.parse(require('fs').readFileSync('config/retailers/nationwide-plants-config.json', 'utf8'));
             if (config.settings && config.settings.syncInventory) {
-              console.log('enabled=true');
+              console.log('true');
             } else {
-              console.log('enabled=false');
+              console.log('false');
             }
-          "; then
+          ")
+          echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
+          if [ "$ENABLED" = "true" ]; then
             echo "Inventory sync is enabled for Nationwide Plants"
           else
             echo "Inventory sync is disabled for Nationwide Plants"
