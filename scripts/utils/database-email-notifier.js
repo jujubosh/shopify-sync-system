@@ -188,9 +188,9 @@ class DatabaseEmailNotifier {
     
     if (results.inventory) {
       summary.inventory = {
-        success: results.inventory.success?.length || 0,
-        errors: results.inventory.errors?.length || 0,
-        total: (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0)
+        success: results.inventory.successfulUpdates || 0,
+        errors: results.inventory.failures || 0,
+        total: results.inventory.total || 0
       };
     }
     
@@ -283,8 +283,8 @@ class DatabaseEmailNotifier {
     if (results.inventory) {
       const inventoryActivity = results.inventory.total || 0;
       totalActivity += inventoryActivity;
-      if (results.inventory.errors?.length > 0) hasErrors = true;
-      console.log(`📦 Inventory: ${inventoryActivity} activity, ${results.inventory.errors?.length || 0} errors`);
+      if (results.inventory.failures > 0) hasErrors = true;
+      console.log(`📦 Inventory: ${inventoryActivity} activity, ${results.inventory.failures || 0} failures`);
     }
     
     console.log(`📊 Total activity: ${totalActivity}, Has errors: ${hasErrors}`);
@@ -549,8 +549,9 @@ Inventory Sync Alert
 
 Time: ${timestamp}
 Total SKUs: ${totalInventory}
-Successful: ${results.inventory.success?.length || 0}
-Errors: ${results.inventory.errors?.length || 0}
+Successful Updates: ${results.inventory.successfulUpdates || 0}
+Location Mismatches: ${results.inventory.locationMismatches || 0}
+Failures: ${results.inventory.failures || 0}
 
 Details:
 ${JSON.stringify(results.inventory, null, 2)}

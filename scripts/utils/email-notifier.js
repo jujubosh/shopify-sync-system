@@ -216,9 +216,9 @@ class EmailNotifier {
     
     if (results.inventory) {
       summary.inventory = {
-        success: results.inventory.success?.length || 0,
-        errors: results.inventory.errors?.length || 0,
-        total: (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0)
+        success: results.inventory.successfulUpdates || 0,
+        errors: results.inventory.failures || 0,
+        total: results.inventory.total || 0
       };
     }
     
@@ -247,9 +247,9 @@ class EmailNotifier {
     
     // Check inventory
     if (results.inventory) {
-      const inventoryActivity = (results.inventory.success?.length || 0) + (results.inventory.errors?.length || 0);
+      const inventoryActivity = results.inventory.total || 0;
       totalActivity += inventoryActivity;
-      if (results.inventory.errors?.length > 0) hasErrors = true;
+      if (results.inventory.failures > 0) hasErrors = true;
     }
     
     // In GitHub Actions mode, always send emails if there's any activity or errors
@@ -508,8 +508,9 @@ Inventory Sync Alert
 
 Time: ${timestamp}
 Total SKUs: ${totalInventory}
-Successful: ${results.inventory.success?.length || 0}
-Errors: ${results.inventory.errors?.length || 0}
+Successful Updates: ${results.inventory.successfulUpdates || 0}
+Location Mismatches: ${results.inventory.locationMismatches || 0}
+Failures: ${results.inventory.failures || 0}
 
 Details:
 ${JSON.stringify(results.inventory, null, 2)}
