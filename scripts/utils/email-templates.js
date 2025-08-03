@@ -843,12 +843,17 @@ class EmailTemplates {
               <h3 style="color: #e67e22; margin: 0 0 15px 0; font-size: 16px;">⚠️ Location Mismatches</h3>
               <div style="background-color: #fdf2e9; padding: 15px; border-radius: 6px;">
                 <p style="margin: 0 0 10px 0; color: #d35400; font-weight: bold;">
-                  ${locationMismatches} SKU(s) have location mismatches between LGL and retailer stores.
+                  ${locationMismatches} SKU(s) failed due to location mapping issues.
                 </p>
-                <p style="margin: 0; font-size: 14px; color: #7f8c8d;">
-                  These SKUs exist in both stores but are assigned to different inventory locations. 
-                  Manual review may be required to align location assignments.
+                <p style="margin: 0 0 10px 0; font-size: 14px; color: #7f8c8d;">
+                  These SKUs exist in both stores but the inventory location mapping is incorrect. 
+                  The SKU is valid but the location assignment needs to be updated.
                 </p>
+                <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                  <p style="margin: 0; font-size: 13px; color: #856404;">
+                    <strong>Action Required:</strong> Review and update location mappings for these SKUs to enable successful inventory sync.
+                  </p>
+                </div>
               </div>
             </div>
           ` : ''}

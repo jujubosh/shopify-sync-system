@@ -543,16 +543,20 @@ async function main(args) {
             if (globalConfig) {
                 const emailNotifier = new DatabaseEmailNotifier(globalConfig);
                 
+                // Calculate location mismatches from the detailed breakdown
+                const locationMismatches = results.detailedBreakdown?.['Target location not found'] || 0;
+                const otherFailures = results.failed - locationMismatches;
+                
                 // Convert results to the format expected by email notifier
                 const emailResults = {
                     inventory: {
                         total: results.processed,
                         successfulUpdates: results.successful || results.updated || 0,
-                        locationMismatches: 0, // This script doesn't track location mismatches
-                        failures: results.failed,
+                        locationMismatches: locationMismatches,
+                        failures: otherFailures,
                         details: {
                             successfulUpdates: (results.successful || results.updated || 0) > 0 ? [{ retailer: 'Nationwide Plants', sku: 'Multiple SKUs' }] : [],
-                            locationMismatches: [],
+                            locationMismatches: locationMismatches > 0 ? [{ retailer: 'Nationwide Plants', sku: 'Location mapping issues', count: locationMismatches }] : [],
                             failures: results.errors.map(error => ({
                                 retailer: 'Nationwide Plants',
                                 sku: error.sku || 'Unknown',
