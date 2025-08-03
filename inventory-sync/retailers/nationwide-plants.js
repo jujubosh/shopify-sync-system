@@ -576,8 +576,8 @@ async function main(args) {
             if (globalConfig) {
                 const emailNotifier = new DatabaseEmailNotifier(globalConfig);
                 
-                // Calculate location mismatches from the detailed breakdown
-                const locationMismatches = results.detailedBreakdown?.['Target location not found'] || 0;
+                // Calculate location mismatches from the actual results field
+                const locationMismatches = results.targetLocationNotFound || 0;
                 const otherFailures = results.failed - locationMismatches;
                 
                 // Convert results to the format expected by email notifier
