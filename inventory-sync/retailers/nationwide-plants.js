@@ -133,9 +133,8 @@ function log(message, level = 'info') {
     fs.appendFileSync(logFile, logMessage + '\n');
 }
 
-async function retryWithBackoff(fn, maxRetries = null, initialDelay = 1000) {
+async function retryWithBackoff(fn, maxRetries = null, initialDelay = 1000, globalConfig = null) {
     // Use global config max retries if available, otherwise default to 3
-    const globalConfig = loadGlobalConfig();
     const retryCount = maxRetries ?? globalConfig?.inventory?.maxRetries ?? 3;
     let retries = 0;
     while (true) {
@@ -249,7 +248,7 @@ async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
 
 
 
-async function syncInventory(sku, sourceClient, targetClient, targetLocationId) {
+async function syncInventory(sku, sourceClient, targetClient, targetLocationId, globalConfig = null) {
     return retryWithBackoff(async () => {
         
         // Get source inventory item and levels
@@ -297,7 +296,7 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId) 
         } else {
             return { status: 'update_failed', sku, sourceQuantity: sourceAvailable, targetQuantity: targetAvailable };
         }
-    });
+    }, null, 1000, globalConfig);
 }
 
 async function updateTargetInventory(client, inventoryItemId, locationId, newQuantity) {
@@ -396,7 +395,7 @@ async function main(args) {
             
             try {
                 const batchResults = await Promise.allSettled(
-                    batch.map(sku => syncInventory(sku, sourceClient, targetClient, retailerConfig.targetLocationId))
+                    batch.map(sku => syncInventory(sku, sourceClient, targetClient, retailerConfig.targetLocationId, globalConfig))
                 );
                 
                 batchResults.forEach((result, index) => {
@@ -534,4 +533,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { main }; 
+module.exports = { main };
