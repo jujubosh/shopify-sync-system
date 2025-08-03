@@ -547,11 +547,11 @@ async function main(args) {
                 const emailResults = {
                     inventory: {
                         total: results.processed,
-                        successfulUpdates: results.updated,
+                        successfulUpdates: results.successful || results.updated || 0,
                         locationMismatches: 0, // This script doesn't track location mismatches
                         failures: results.failed,
                         details: {
-                            successfulUpdates: results.updated > 0 ? [{ retailer: 'Nationwide Plants', sku: 'Multiple SKUs' }] : [],
+                            successfulUpdates: (results.successful || results.updated || 0) > 0 ? [{ retailer: 'Nationwide Plants', sku: 'Multiple SKUs' }] : [],
                             locationMismatches: [],
                             failures: results.errors.map(error => ({
                                 retailer: 'Nationwide Plants',
