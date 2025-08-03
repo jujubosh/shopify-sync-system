@@ -1,7 +1,7 @@
-import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
 
 // Load environment variables from .env.local if it exists
 const envPath = path.join(process.cwd(), '.env.local');
@@ -11,15 +11,14 @@ if (fs.existsSync(envPath)) {
 }
 
 // Configuration
-const CONFIG_PATH = '../../config/retailers/nationwide-plants-config.json';
-const LOG_DIR = '../../logs';
-const GLOBAL_CONFIG_PATH = '../../config/global-config-test.json';
+const CONFIG_PATH = path.join(__dirname, '../../config/retailers/nationwide-plants-config.json');
+const LOG_DIR = path.join(__dirname, '../../logs');
+const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config-test.json');
 
 // Load retailer configuration
 function loadRetailerConfig() {
     try {
-        const configPath = new URL(CONFIG_PATH, import.meta.url).pathname;
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         
         if (!config.settings?.syncInventory) {
             throw new Error('Inventory sync is not enabled for this retailer');
@@ -35,9 +34,8 @@ function loadRetailerConfig() {
 // Load global configuration for testing
 function loadGlobalConfig() {
     try {
-        const globalConfigPath = new URL(GLOBAL_CONFIG_PATH, import.meta.url).pathname;
-        if (fs.existsSync(globalConfigPath)) {
-            const globalConfig = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+        if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
+            const globalConfig = JSON.parse(fs.readFileSync(GLOBAL_CONFIG_PATH, 'utf8'));
             console.log('Loaded global test configuration');
             return globalConfig;
         }
@@ -335,7 +333,7 @@ async function updateTargetInventory(client, inventoryItemId, locationId, newQua
 }
 
 // Main function
-export async function main(args) {
+async function main(args) {
     const startTime = Date.now();
     
     try {
@@ -429,7 +427,7 @@ export async function main(args) {
                             case 'target_location_not_found':
                                 results.targetLocationNotFound++;
                                 results.failed++;
-                                log(`❌ Target location not found: ${sku} (source had ${value.sourceQuantity})`);
+                                log(`❌ Target location not found: ${sku}`);
                                 break;
                             case 'source_no_inventory':
                                 results.sourceNoInventory++;
@@ -529,9 +527,11 @@ export async function main(args) {
 }
 
 // For local testing
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
     main().catch(error => {
         log(`Fatal error: ${error.message}`, 'error');
         process.exit(1);
     });
-} 
+}
+
+module.exports = { main }; 
