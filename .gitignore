@@ -43,6 +43,10 @@ jspm_packages/
 .env.test.local
 .env.production.local
 
+# inventory sync templates
+inventory-sync/retailers/template.js
+.github/workflows/inventory-sync-template.yml
+
 # IDE files
 .vscode/
 .idea/
