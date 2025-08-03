@@ -8,10 +8,22 @@
     "lookbackHours": 4,
     "fulfillmentLookbackHours": 24
   },
+  "shopifyApi": {
+    "rateLimiting": {
+      "enabled": true,
+      "requestsPerSecond": 4,
+      "maxConcurrentRequests": 10,
+      "rateLimitWindowMs": 5000,
+      "maxRetries": 3,
+      "retryDelayMs": 1000,
+      "exponentialBackoff": true,
+      "timeoutMs": 3000
+    }
+  },
   "inventory": {
     "batchSize": 10,
-    "delayBetweenBatches": 2000,
-    "maxRetries": 3
+    "delayBetweenBatches": 500,
+    "maxRetries": 1
   },
   "logging": {
     "level": "info",
