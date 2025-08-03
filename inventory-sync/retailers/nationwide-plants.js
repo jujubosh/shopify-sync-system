@@ -13,7 +13,7 @@ if (fs.existsSync(envPath)) {
 // Configuration
 const CONFIG_PATH = path.join(__dirname, '../../config/retailers/nationwide-plants-config.json');
 const LOG_DIR = path.join(__dirname, '../../logs');
-const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config-test.json');
+const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config.json');
 
 // Load retailer configuration
 function loadRetailerConfig() {
@@ -31,17 +31,17 @@ function loadRetailerConfig() {
     }
 }
 
-// Load global configuration for testing
+// Load global configuration
 function loadGlobalConfig() {
     try {
         if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
             const globalConfig = JSON.parse(fs.readFileSync(GLOBAL_CONFIG_PATH, 'utf8'));
-            console.log('Loaded global test configuration');
+            console.log('Loaded global configuration');
             return globalConfig;
         }
         return null;
     } catch (error) {
-        console.warn('Failed to load global test config:', error.message);
+        console.warn('Failed to load global config:', error.message);
         return null;
     }
 }
