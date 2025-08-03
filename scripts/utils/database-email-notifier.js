@@ -535,13 +535,16 @@ ${JSON.stringify(results.orders, null, 2)}
 
     // Use the actual total from results, not calculated from arrays
     const totalInventory = results.inventory.total || 0;
+    const successfulUpdates = results.inventory.successfulUpdates || 0;
+    
     if (totalInventory === 0) {
       return;
     }
 
     await this.logActivity('inventory', results, true);
 
-    const subject = `Inventory: ${totalInventory} SKUs updated`;
+    // Update subject line to show successful updates instead of total
+    const subject = `Inventory: ${successfulUpdates} SKUs updated successfully`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -549,7 +552,7 @@ Inventory Sync Alert
 
 Time: ${timestamp}
 Total SKUs: ${totalInventory}
-Successful Updates: ${results.inventory.successfulUpdates || 0}
+Successful Updates: ${successfulUpdates}
 Location Mismatches: ${results.inventory.locationMismatches || 0}
 Failures: ${results.inventory.failures || 0}
 

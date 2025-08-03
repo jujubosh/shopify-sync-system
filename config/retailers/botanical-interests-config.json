@@ -1,0 +1,29 @@
+{
+  "name": "Botanical Interests",
+  "domain": "83e136-83.myshopify.com",
+  "apiToken": "SHOPIFY_BOTANICALINTERESTS_TOKEN",
+  "lglLocationId": "84385005803",
+  "targetLocationId": "gid://shopify/Location/84385005803",
+  "billingAddress": {
+    "email": "scheng@epicgardening.com",
+    "first_name": "B2B:",
+    "last_name": "botanicalinterests-com",
+    "address1": "660 Compton St",
+    "city": "Broomfield",
+    "province": "CO",
+    "zip": "80020",
+    "country": "United States"
+  },
+  "settings": {
+    "enabled": true,
+    "importOrders": true,
+    "pushFulfillments": true,
+    "customFields": {
+      "includeNote": true,
+      "includeTags": true
+    },
+    "lookbackHours": 6,
+    "fulfillmentLookbackHours": 24,
+    "syncInventory": true
+  }
+} 

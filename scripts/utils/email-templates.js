@@ -838,6 +838,20 @@ class EmailTemplates {
             `).join('')}
           </div>
           
+          ${successfulUpdates > 0 ? `
+            <div style="margin-bottom: 25px;">
+              <h3 style="color: #27ae60; margin: 0 0 15px 0; font-size: 16px;">✅ Successful Updates</h3>
+              <div style="background-color: #d5f4e6; padding: 15px; border-radius: 6px;">
+                <p style="margin: 0 0 10px 0; color: #27ae60; font-weight: bold;">
+                  ${successfulUpdates} SKU(s) successfully updated with new inventory levels.
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #7f8c8d;">
+                  These SKUs were successfully synchronized from the source store to the target store.
+                </p>
+              </div>
+            </div>
+          ` : ''}
+          
           ${locationMismatches > 0 ? `
             <div style="margin-bottom: 25px;">
               <h3 style="color: #e67e22; margin: 0 0 15px 0; font-size: 16px;">⚠️ Location Mismatches</h3>
