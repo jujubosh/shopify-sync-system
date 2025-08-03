@@ -1,4 +1,4 @@
-name: Shopify Sync System
+name: Order Import Sync
 
 on:
   schedule:

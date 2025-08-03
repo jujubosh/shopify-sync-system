@@ -3,7 +3,7 @@ name: Inventory Sync - Nationwide Plants
 on:
   schedule:
     # Run inventory sync every 5 minutes
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       force_run:
