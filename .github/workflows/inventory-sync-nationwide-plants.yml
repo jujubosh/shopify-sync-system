@@ -86,23 +86,3 @@ jobs:
         name: inventory-sync-nationwide-plants-logs-${{ github.run_id }}
         path: logs/inventory-sync-nationwide-plants-*.log
         retention-days: 7
-        
-    - name: Notify on failure
-      if: failure()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#alerts'
-        text: 'Nationwide Plants inventory sync failed!'
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        
-    - name: Notify on success
-      if: success() && steps.check-config.outputs.force_run == 'true' || steps.check-config.outputs.enabled == 'true'
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#alerts'
-        text: 'Nationwide Plants inventory sync completed successfully!'
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 
