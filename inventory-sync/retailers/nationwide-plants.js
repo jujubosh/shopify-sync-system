@@ -129,7 +129,7 @@ function log(message, level = 'info') {
     console.log(logMessage);
     
     // Write to log file
-    const logFile = path.join(new URL(LOG_DIR, import.meta.url).pathname, `inventory-sync-nationwide-plants-${new Date().toISOString().split('T')[0]}.log`);
+    const logFile = path.join(LOG_DIR, `inventory-sync-nationwide-plants-${new Date().toISOString().split('T')[0]}.log`);
     fs.appendFileSync(logFile, logMessage + '\n');
 }
 
