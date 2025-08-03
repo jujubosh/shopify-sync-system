@@ -775,9 +775,10 @@ class EmailTemplates {
     
     // Group by retailer for cleaner display
     const retailerSummaries = retailers.map(retailer => {
-      const successCount = inventory.details?.successfulUpdates?.filter(item => item.retailer === retailer).length || 0;
-      const mismatchCount = inventory.details?.locationMismatches?.filter(item => item.retailer === retailer).length || 0;
-      const failureCount = inventory.details?.failures?.filter(item => item.retailer === retailer).length || 0;
+      // Use the actual counts from the inventory object, not the details arrays
+      const successCount = inventory.successfulUpdates || 0;
+      const mismatchCount = inventory.locationMismatches || 0;
+      const failureCount = inventory.failures || 0;
       const retailerTotal = successCount + mismatchCount + failureCount;
       const retailerSuccessRate = retailerTotal > 0 ? Math.round((successCount / retailerTotal) * 100) : 0;
       
