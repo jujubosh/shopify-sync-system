@@ -3,7 +3,7 @@ name: Order Import Sync
 on:
   schedule:
     # Run full sync every 30 minutes
-    - cron: '*/10 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       operation:
@@ -66,12 +66,3 @@ jobs:
         name: sync-logs-${{ github.run_id }}
         path: logs/
         retention-days: 7
-        
-    - name: Notify on failure
-      if: failure()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#alerts'
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 
