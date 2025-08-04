@@ -21,13 +21,28 @@ class DatabaseService {
   }
 
   async getRetailerById(id) {
-    const { data, error } = await this.supabase
+    // First try exact match
+    let { data, error } = await this.supabase
       .from(TABLES.RETAILERS)
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error) {
+    // If exact match fails, try to find by base name (before timestamp)
+    if (error && error.message.includes('multiple (or no) rows returned')) {
+      const { data: data2, error: error2 } = await this.supabase
+        .from(TABLES.RETAILERS)
+        .select('*')
+        .ilike('id', `${id}-%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error2) {
+        throw new Error(`Failed to get retailer ${id}: ${error2.message}`);
+      }
+      data = data2;
+    } else if (error) {
       throw new Error(`Failed to get retailer ${id}: ${error.message}`);
     }
 
