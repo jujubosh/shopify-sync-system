@@ -34,6 +34,9 @@ jobs:
       
     - name: Check if inventory sync is enabled
       id: check-config
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       run: |
         if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
           echo "force_run=true" >> $GITHUB_OUTPUT
