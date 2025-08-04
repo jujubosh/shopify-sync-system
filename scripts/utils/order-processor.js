@@ -215,7 +215,17 @@ class OrderProcessor {
       country: shipping.country,
       phone: shipping.phone,
     };
-    const billingAddress = this.retailer.billingAddress;
+    const billingAddress = {
+      first_name: this.retailer.billingAddress.first_name,
+      last_name: this.retailer.billingAddress.last_name,
+      address1: this.retailer.billingAddress.address1,
+      address2: this.retailer.billingAddress.address2 || '',
+      city: this.retailer.billingAddress.city,
+      province: this.retailer.billingAddress.province,
+      zip: this.retailer.billingAddress.zip,
+      country: this.retailer.billingAddress.country,
+      phone: this.retailer.billingAddress.phone || null,
+    };
     let tag1 = order.name.replace('#', '');
     let tag2 = `imported-from-${this.retailer.name.replace(/\s+/g, '-').toLowerCase()}`;
     tag1 = tag1.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 40);
