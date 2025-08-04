@@ -60,10 +60,6 @@ class OrderProcessor {
               note
               cancelReason
               cancelledAt
-              noteAttributes {
-                name
-                value
-              }
               metafields(first: 10, namespace: "custom") {
                 edges {
                   node {
@@ -221,7 +217,7 @@ class OrderProcessor {
     };
     const billingAddress = this.retailer.billingAddress;
     let tag1 = order.name.replace('#', '');
-    let tag2 = `Imported from ${this.retailer.name}`;
+    let tag2 = `imported-from-${this.retailer.name.replace(/\s+/g, '-').toLowerCase()}`;
     tag1 = tag1.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 40);
     tag2 = tag2.replace(/[^a-zA-Z0-9-_ ]/g, '').substring(0, 40);
     const tags = `${tag1},${tag2}`;
@@ -233,25 +229,13 @@ class OrderProcessor {
     // Extract ship date from target store's order data
     let shipDate = null;
     
-    // Check note attributes for ship date
-    if (order.noteAttributes) {
-      const shipDateAttr = order.noteAttributes.find(attr => 
-        attr.name === '__flare_ship_date' || 
-        attr.name === 'ship_date' || 
-        attr.name === 'shipped_date'
-      );
-      if (shipDateAttr) {
-        shipDate = shipDateAttr.value;
-        this.logger.logInfo(`Found ship date in note attributes: ${shipDate}`);
-      }
-    }
-    
-    // Check metafields for ship date if not found in note attributes
-    if (!shipDate && order.metafields && order.metafields.edges) {
+    // Check metafields for ship date
+    if (order.metafields && order.metafields.edges) {
       const shipDateMetafield = order.metafields.edges.find(edge => 
         edge.node.key === 'ship_date' || 
         edge.node.key === 'shipped_date' ||
-        edge.node.key === 'flare_ship_date'
+        edge.node.key === 'flare_ship_date' ||
+        edge.node.key === '__flare_ship_date'
       );
       if (shipDateMetafield) {
         shipDate = shipDateMetafield.node.value;
