@@ -23,10 +23,7 @@ async function processOrders(retailers, config) {
   const results = { total: 0, success: [], errors: [] };
   
   for (const retailer of retailers) {
-    if (!retailer.settings.enabled || !retailer.settings.importOrders) {
-      console.log(`Skipping ${retailer.name}: disabled or import disabled`);
-      continue;
-    }
+    // Workflow already validated that retailer is enabled and importOrders is enabled
     try {
       const processor = new OrderProcessor(retailer, config);
       const orderResult = await processor.processOrders();
@@ -48,10 +45,7 @@ async function processFulfillments(retailers, config) {
   const results = { total: 0, success: [], errors: [] };
   
   for (const retailer of retailers) {
-    if (!retailer.settings.enabled || !retailer.settings.pushFulfillments) {
-      console.log(`Skipping ${retailer.name}: disabled or fulfillment pushback disabled`);
-      continue;
-    }
+    // Workflow already validated that retailer is enabled and pushFulfillments is enabled
     try {
       const processor = new FulfillmentProcessor(retailer, config);
       const fulfillmentResult = await processor.processFulfillments();
