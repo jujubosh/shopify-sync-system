@@ -60,6 +60,18 @@ class OrderProcessor {
               note
               cancelReason
               cancelledAt
+              noteAttributes {
+                name
+                value
+              }
+              metafields(first: 10, namespace: "custom") {
+                edges {
+                  node {
+                    key
+                    value
+                  }
+                }
+              }
               lineItems(first: 50) {
                 edges {
                   node {
@@ -218,15 +230,44 @@ class OrderProcessor {
       { name: 'order_number', value: order.name.replace('#', '') }
     ];
     
-    // Add __flare_ship_date for Nationwide Plants orders
-    if (this.retailer.name === 'Nationwide Plants') {
-      // For Nationwide Plants, always use current date as ship date
-      // Note: In a real implementation, you might want to extract this from order metafields
-      const shipDate = new Date().toISOString().split('T')[0];
-      this.logger.logInfo(`Using current date as ship date for Nationwide Plants: ${shipDate}`);
-      
-      noteAttributes.push({ name: '__flare_ship_date', value: shipDate });
+    // Extract ship date from target store's order data
+    let shipDate = null;
+    
+    // Check note attributes for ship date
+    if (order.noteAttributes) {
+      const shipDateAttr = order.noteAttributes.find(attr => 
+        attr.name === '__flare_ship_date' || 
+        attr.name === 'ship_date' || 
+        attr.name === 'shipped_date'
+      );
+      if (shipDateAttr) {
+        shipDate = shipDateAttr.value;
+        this.logger.logInfo(`Found ship date in note attributes: ${shipDate}`);
+      }
     }
+    
+    // Check metafields for ship date if not found in note attributes
+    if (!shipDate && order.metafields && order.metafields.edges) {
+      const shipDateMetafield = order.metafields.edges.find(edge => 
+        edge.node.key === 'ship_date' || 
+        edge.node.key === 'shipped_date' ||
+        edge.node.key === 'flare_ship_date'
+      );
+      if (shipDateMetafield) {
+        shipDate = shipDateMetafield.node.value;
+        this.logger.logInfo(`Found ship date in metafields: ${shipDate}`);
+      }
+    }
+    
+    // If no ship date found, use current date as fallback
+    if (!shipDate) {
+      shipDate = new Date().toISOString().split('T')[0];
+      this.logger.logInfo(`No ship date found in target store, using current date: ${shipDate}`);
+    }
+    
+    // Add the flare ship date to note attributes
+    noteAttributes.push({ name: '__flare_ship_date', value: shipDate });
+    this.logger.logInfo(`Setting flare ship date to: ${shipDate}`);
     
     const orderPayload = {
       order: {
