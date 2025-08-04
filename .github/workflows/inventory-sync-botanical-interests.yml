@@ -40,20 +40,32 @@ jobs:
           echo "enabled=true" >> $GITHUB_OUTPUT
           echo "Inventory sync forced to run"
         else
-          # Check if inventory sync is enabled in config
+          # Check if inventory sync is enabled in database
           ENABLED=$(node -e "
-            const config = JSON.parse(require('fs').readFileSync('config/retailers/botanical-interests-config.json', 'utf8'));
-            if (config.settings && config.settings.syncInventory) {
-              console.log('true');
-            } else {
-              console.log('false');
+            const { RetailerService } = require('./scripts/utils/retailer-service');
+            
+            async function checkInventorySync() {
+              try {
+                const retailerService = new RetailerService();
+                const retailer = await retailerService.loadRetailerById('botanical-interests');
+                if (retailer.settings && retailer.settings.syncInventory) {
+                  console.log('true');
+                } else {
+                  console.log('false');
+                }
+              } catch (error) {
+                console.error('Error checking database:', error.message);
+                console.log('false');
+              }
             }
+            
+            checkInventorySync();
           ")
           echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
           if [ "$ENABLED" = "true" ]; then
-            echo "Inventory sync is enabled for Botanical Interests"
+            echo "Inventory sync is enabled for Botanical Interests (from database)"
           else
-            echo "Inventory sync is disabled for Botanical Interests"
+            echo "Inventory sync is disabled for Botanical Interests (from database)"
           fi
         fi
       
@@ -73,11 +85,12 @@ jobs:
         echo "Running Botanical Interests inventory sync"
         node inventory-sync/retailers/botanical-interests.js
         
-    - name: Skip sync (disabled in config)
+    - name: Skip sync (disabled in database)
       if: steps.check-config.outputs.force_run != 'true' && steps.check-config.outputs.enabled != 'true'
       run: |
-        echo "Skipping Botanical Interests inventory sync - disabled in config"
+        echo "Skipping Botanical Interests inventory sync - disabled in database"
         echo "To force run, use the workflow_dispatch with force_run=true"
+        echo "To enable, update the sync_inventory field in the database for botanical-interests"
         
     - name: Upload logs
       uses: actions/upload-artifact@v4
