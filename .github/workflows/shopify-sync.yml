@@ -15,6 +15,11 @@ on:
           - all
           - fulfillments
           - orders
+      force_run:
+        description: 'Force run even if disabled in database'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   sync:
@@ -36,7 +41,73 @@ jobs:
     - name: Create logs directory
       run: mkdir -p logs
       
+    - name: Check database settings for operations
+      id: check-database
+      run: |
+        if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+          echo "force_run=true" >> $GITHUB_OUTPUT
+          echo "import_orders_enabled=true" >> $GITHUB_OUTPUT
+          echo "push_fulfillments_enabled=true" >> $GITHUB_OUTPUT
+          echo "Operations forced to run"
+        else
+          # Check if operations are enabled in database
+          OPERATIONS=$(node -e "
+            const { RetailerService } = require('./scripts/utils/retailer-service');
+            
+            async function checkOperations() {
+              try {
+                const retailerService = new RetailerService();
+                const retailers = await retailerService.loadRetailers();
+                
+                let importOrdersEnabled = false;
+                let pushFulfillmentsEnabled = false;
+                
+                for (const retailer of retailers) {
+                  if (retailer.settings?.enabled && retailer.settings?.importOrders) {
+                    importOrdersEnabled = true;
+                  }
+                  if (retailer.settings?.enabled && retailer.settings?.pushFulfillments) {
+                    pushFulfillmentsEnabled = true;
+                  }
+                }
+                
+                console.log(JSON.stringify({
+                  importOrders: importOrdersEnabled,
+                  pushFulfillments: pushFulfillmentsEnabled
+                }));
+              } catch (error) {
+                console.error('Error checking database:', error.message);
+                console.log(JSON.stringify({
+                  importOrders: false,
+                  pushFulfillments: false
+                }));
+              }
+            }
+            
+            checkOperations();
+          ")
+          
+          IMPORT_ORDERS_ENABLED=$(echo "$OPERATIONS" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf8')).importOrders)")
+          PUSH_FULFILLMENTS_ENABLED=$(echo "$OPERATIONS" | node -e "console.log(JSON.parse(require('fs').readFileSync(0, 'utf8')).pushFulfillments)")
+          
+          echo "import_orders_enabled=$IMPORT_ORDERS_ENABLED" >> $GITHUB_OUTPUT
+          echo "push_fulfillments_enabled=$PUSH_FULFILLMENTS_ENABLED" >> $GITHUB_OUTPUT
+          
+          if [ "$IMPORT_ORDERS_ENABLED" = "true" ]; then
+            echo "Import orders is enabled (from database)"
+          else
+            echo "Import orders is disabled (from database)"
+          fi
+          
+          if [ "$PUSH_FULFILLMENTS_ENABLED" = "true" ]; then
+            echo "Push fulfillments is enabled (from database)"
+          else
+            echo "Push fulfillments is disabled (from database)"
+          fi
+        fi
+      
     - name: Run Shopify Sync
+      if: steps.check-database.outputs.force_run == 'true' || steps.check-database.outputs.import_orders_enabled == 'true' || steps.check-database.outputs.push_fulfillments_enabled == 'true'
       env:
         MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
@@ -51,15 +122,32 @@ jobs:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       run: |
-        # Always run the full sync operation
+        # Determine operation based on what's enabled
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           OPERATION="${{ github.event.inputs.operation }}"
         else
-          OPERATION="all"
+          # Auto-determine operation based on what's enabled
+          if [ "${{ steps.check-database.outputs.import_orders_enabled }}" = "true" ] && [ "${{ steps.check-database.outputs.push_fulfillments_enabled }}" = "true" ]; then
+            OPERATION="all"
+          elif [ "${{ steps.check-database.outputs.import_orders_enabled }}" = "true" ]; then
+            OPERATION="orders"
+          elif [ "${{ steps.check-database.outputs.push_fulfillments_enabled }}" = "true" ]; then
+            OPERATION="fulfillments"
+          else
+            echo "No operations enabled, skipping"
+            exit 0
+          fi
         fi
         
         echo "Running operation: $OPERATION"
         node scripts/process-all.js $OPERATION
+        
+    - name: Skip sync (no operations enabled)
+      if: steps.check-database.outputs.force_run != 'true' && steps.check-database.outputs.import_orders_enabled != 'true' && steps.check-database.outputs.push_fulfillments_enabled != 'true'
+      run: |
+        echo "Skipping sync - no operations enabled in database"
+        echo "To force run, use the workflow_dispatch with force_run=true"
+        echo "To enable operations, update the import_orders and push_fulfillments fields in the database"
         
     - name: Upload logs
       uses: actions/upload-artifact@v4

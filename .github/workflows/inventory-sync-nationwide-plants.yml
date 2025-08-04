@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       force_run:
-        description: 'Force run even if disabled in config'
+        description: 'Force run even if disabled in database'
         required: false
         type: boolean
         default: false
@@ -40,20 +40,32 @@ jobs:
           echo "enabled=true" >> $GITHUB_OUTPUT
           echo "Inventory sync forced to run"
         else
-          # Check if inventory sync is enabled in config
+          # Check if inventory sync is enabled in database
           ENABLED=$(node -e "
-            const config = JSON.parse(require('fs').readFileSync('config/retailers/nationwide-plants-config.json', 'utf8'));
-            if (config.settings && config.settings.syncInventory) {
-              console.log('true');
-            } else {
-              console.log('false');
+            const { RetailerService } = require('./scripts/utils/retailer-service');
+            
+            async function checkInventorySync() {
+              try {
+                const retailerService = new RetailerService();
+                const retailer = await retailerService.loadRetailerById('nationwide-plants');
+                if (retailer.settings && retailer.settings.syncInventory) {
+                  console.log('true');
+                } else {
+                  console.log('false');
+                }
+              } catch (error) {
+                console.error('Error checking database:', error.message);
+                console.log('false');
+              }
             }
+            
+            checkInventorySync();
           ")
           echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
           if [ "$ENABLED" = "true" ]; then
-            echo "Inventory sync is enabled for Nationwide Plants"
+            echo "Inventory sync is enabled for Nationwide Plants (from database)"
           else
-            echo "Inventory sync is disabled for Nationwide Plants"
+            echo "Inventory sync is disabled for Nationwide Plants (from database)"
           fi
         fi
       
@@ -73,11 +85,12 @@ jobs:
         echo "Running Nationwide Plants inventory sync"
         node inventory-sync/retailers/nationwide-plants.js
         
-    - name: Skip sync (disabled in config)
+    - name: Skip sync (disabled in database)
       if: steps.check-config.outputs.force_run != 'true' && steps.check-config.outputs.enabled != 'true'
       run: |
-        echo "Skipping Nationwide Plants inventory sync - disabled in config"
+        echo "Skipping Nationwide Plants inventory sync - disabled in database"
         echo "To force run, use the workflow_dispatch with force_run=true"
+        echo "To enable, update the sync_inventory field in the database for nationwide-plants"
         
     - name: Upload logs
       uses: actions/upload-artifact@v4
