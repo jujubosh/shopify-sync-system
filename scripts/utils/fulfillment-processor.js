@@ -14,7 +14,7 @@ class FulfillmentProcessor {
 
   async processFulfillments() {
     this.logger.logInfo('Starting fulfillment pushback process');
-    const results = { total: 0, success: [], errors: [] };
+    const results = { total: 0, success: [], errors: [], skipped: [] };
     
     try {
       const orders = await this.getFulfilledTargetOrders();
@@ -29,13 +29,21 @@ class FulfillmentProcessor {
           results.success.push(`Pushed fulfillment for order ${order.name}`);
           results.total++; // Only increment total for successfully processed orders
         } catch (error) {
-          this.logger.logError(`Failed to push fulfillment for target order ${order.name}: ${error.message}`, 'error', error);
-          results.errors.push(`Failed to push fulfillment for order ${order.name}: ${error.message}`);
-          // Don't increment total for failed orders - only count successful ones
+          // Check if this is an "already fulfilled" scenario
+          if (error.message.includes('already fulfilled') || error.message.includes('All items')) {
+            this.logger.logInfo(`Skipping ${order.name}: items already fulfilled`);
+            await this.tagTargetOrder(order.id, 'fulfillment-pushed');
+            results.skipped.push(`Skipped fulfillment for order ${order.name}: already fulfilled`);
+            results.total++; // Count as successful since we handled it properly
+          } else {
+            this.logger.logError(`Failed to push fulfillment for target order ${order.name}: ${error.message}`, 'error', error);
+            results.errors.push(`Failed to push fulfillment for order ${order.name}: ${error.message}`);
+            // Don't increment total for failed orders - only count successful ones
+          }
         }
       }
       
-      this.logger.logInfo(`Fulfillment processing complete: ${results.total} processed, ${results.success.length} successful, ${results.errors.length} failed`);
+      this.logger.logInfo(`Fulfillment processing complete: ${results.total} processed, ${results.success.length} successful, ${results.skipped.length} skipped, ${results.errors.length} failed`);
       
       return results;
     } catch (error) {
@@ -48,88 +56,55 @@ class FulfillmentProcessor {
     const lookbackHours = this.config.defaults.fulfillmentLookbackHours;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
     
-    const query = `
-      query getOrders($after: String) {
-        orders(first: 100, after: $after, query: "fulfillment_status:fulfilled created_at:>='${lookbackTime}'") {
-          pageInfo { hasNextPage }
-          edges {
-            cursor
-            node {
-              id
-              name
-              tags
-              note
-              fulfillments(first: 5) {
-                trackingInfo {
-                  company
-                  number
-                  url
-                }
-                createdAt
-                fulfillmentLineItems(first: 10) {
-                  edges {
-                    node {
-                      lineItem {
-                        id
-                        sku
-                        quantity
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    let hasNextPage = true;
-    let after = null;
+    // Use REST API to get orders with fulfillments
+    const path = `/orders.json?status=any&limit=100&created_at_min=${lookbackTime}`;
+    const data = await this.lglClient.rest('GET', path);
+    
     const orders = [];
     
-    while (hasNextPage) {
-      const variables = after ? { after } : {};
-      const data = await this.lglClient.graphql(query, variables);
-      const orderEdges = data.orders.edges;
+    this.logger.logInfo(`Found ${data.orders.length} orders from REST API query`);
+    
+    for (const order of data.orders) {
+      this.logger.logInfo(`Processing order ${order.name}`);
       
-      for (const edge of orderEdges) {
-        const order = edge.node;
-        // Only process if not already pushed
-        if (order.tags.includes('fulfillment-pushed')) {
-          this.logger.logInfo(`Skipping ${order.name}: already pushed`);
-          continue;
-        }
-        
-        // Must have an 'imported-from-...' tag and a numeric order number tag
-        const importedFromTag = order.tags.find(tag => tag.startsWith('imported-from-'));
-        const orderNumberTag = order.tags.find(tag => /^\d+$/.test(tag));
-        
-        if (!importedFromTag || !orderNumberTag) {
-          this.logger.logInfo(`Skipping ${order.name}: missing required tags (imported-from: ${!!importedFromTag}, order number: ${!!orderNumberTag})`);
-          continue;
-        }
-        
-        // Extract source info using tags
-        const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(order.tags);
-        if (!sourceOrderNumber || !sourceStoreName) {
-          this.logger.logInfo(`Skipping ${order.name}: could not extract source info (orderNumber: ${sourceOrderNumber}, storeName: ${sourceStoreName})`);
-          continue;
-        }
-        
-        // Only process orders that were imported from the current retailer
-        const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
-        if (sourceStoreName !== currentRetailerName) {
-          this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
-          continue;
-        }
-        
-        this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
-        orders.push({ ...order, sourceOrderNumber, sourceStoreName });
+      // Only process fulfilled orders
+      if (order.fulfillment_status !== 'fulfilled') {
+        this.logger.logInfo(`Skipping ${order.name}: not fulfilled (status: ${order.fulfillment_status})`);
+        continue;
       }
       
-      hasNextPage = data.orders.pageInfo.hasNextPage;
-      after = hasNextPage ? orderEdges[orderEdges.length - 1].cursor : null;
+      // Only process if not already pushed
+      if (order.tags.includes('fulfillment-pushed')) {
+        this.logger.logInfo(`Skipping ${order.name}: already pushed`);
+        continue;
+      }
+      
+      // Must have an 'imported-from-...' tag and a numeric order number tag
+      const tags = order.tags.split(',').map(tag => tag.trim());
+      const importedFromTag = tags.find(tag => tag.startsWith('imported-from-'));
+      const orderNumberTag = tags.find(tag => /^\d+$/.test(tag));
+      
+      if (!importedFromTag || !orderNumberTag) {
+        this.logger.logInfo(`Skipping ${order.name}: missing required tags (imported-from: ${!!importedFromTag}, order number: ${!!orderNumberTag})`);
+        continue;
+      }
+      
+      // Extract source info using tags
+      const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(tags);
+      if (!sourceOrderNumber || !sourceStoreName) {
+        this.logger.logInfo(`Skipping ${order.name}: could not extract source info (orderNumber: ${sourceOrderNumber}, storeName: ${sourceStoreName})`);
+        continue;
+      }
+      
+      // Only process orders that were imported from the current retailer
+      const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
+      if (sourceStoreName !== currentRetailerName) {
+        this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
+        continue;
+      }
+      
+      this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
+      orders.push({ ...order, sourceOrderNumber, sourceStoreName });
     }
     
     return orders;
@@ -203,14 +178,31 @@ class FulfillmentProcessor {
       throw new Error('No fulfillmentOrder for correct location on source order');
     }
 
-    // Build lineItemsByFulfillmentOrder input
-    const lineItemsByFulfillmentOrder = fulfillmentOrdersToFulfill.map(edge => ({
-      fulfillmentOrderId: edge.node.id,
-      fulfillmentOrderLineItems: edge.node.lineItems.edges.map(itemEdge => ({
-        id: itemEdge.node.id,
-        quantity: itemEdge.node.remainingQuantity
-      })),
-    }));
+    // Build lineItemsByFulfillmentOrder input - only include items with remainingQuantity > 0
+    const lineItemsByFulfillmentOrder = fulfillmentOrdersToFulfill.map(edge => {
+      const fulfillmentOrder = edge.node;
+      const lineItemsWithRemainingQuantity = fulfillmentOrder.lineItems.edges
+        .filter(itemEdge => itemEdge.node.remainingQuantity > 0)
+        .map(itemEdge => ({
+          id: itemEdge.node.id,
+          quantity: itemEdge.node.remainingQuantity
+        }));
+      
+      // Only include fulfillment orders that have items with remaining quantity
+      if (lineItemsWithRemainingQuantity.length === 0) {
+        return null;
+      }
+      
+      return {
+        fulfillmentOrderId: fulfillmentOrder.id,
+        fulfillmentOrderLineItems: lineItemsWithRemainingQuantity,
+      };
+    }).filter(Boolean); // Remove null entries
+    
+    if (lineItemsByFulfillmentOrder.length === 0) {
+      this.logger.logInfo(`All items in source order ${order.sourceOrderNumber} are already fulfilled for location ${this.retailer.lglLocationId}`);
+      return; // Skip fulfillment creation if all items are already fulfilled
+    }
 
     // Prepare fulfillment info from the target order
     const fulfillment = order.fulfillments[0]; // Assume one fulfillment for now
@@ -286,12 +278,24 @@ class FulfillmentProcessor {
   }
 
   async fetchFulfillmentsREST(orderId) {
-    const orderIdNum = orderId.split('/').pop();
+    // Handle both GraphQL IDs (gid://shopify/Order/123) and numeric IDs
+    let orderIdNum;
+    if (typeof orderId === 'string' && orderId.includes('/')) {
+      orderIdNum = orderId.split('/').pop();
+    } else {
+      orderIdNum = orderId.toString();
+    }
     const path = `/orders/${orderIdNum}/fulfillments.json`;
     return await this.lglClient.rest('GET', path);
   }
 
   async tagTargetOrder(orderId, tag) {
+    // Convert numeric ID to GraphQL global ID if needed
+    let globalId = orderId;
+    if (typeof orderId === 'number' || (typeof orderId === 'string' && !orderId.includes('/'))) {
+      globalId = `gid://shopify/Order/${orderId}`;
+    }
+    
     const mutation = `
       mutation addTags($id: ID!, $tags: [String!]!) {
         tagsAdd(id: $id, tags: $tags) {
@@ -300,7 +304,7 @@ class FulfillmentProcessor {
         }
       }
     `;
-    await this.lglClient.graphql(mutation, { id: orderId, tags: [tag] });
+    await this.lglClient.graphql(mutation, { id: globalId, tags: [tag] });
   }
 }
 
