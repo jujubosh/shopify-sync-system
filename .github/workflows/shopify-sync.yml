@@ -2,7 +2,7 @@ name: Order Import Sync
 
 on:
   schedule:
-    # Run full sync every 30 minutes
+    # Run full sync every 15 minutes
     - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
