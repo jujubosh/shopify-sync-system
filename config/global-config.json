@@ -21,9 +21,9 @@
     }
   },
   "inventory": {
-    "batchSize": 10,
-    "delayBetweenBatches": 700,
-    "maxRetries": 2
+    "batchSize": 5,
+    "delayBetweenBatches": 1500,
+    "maxRetries": 3
   },
   "logging": {
     "level": "info",

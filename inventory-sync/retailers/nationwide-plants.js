@@ -344,10 +344,16 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
         
         const targetAvailable = targetLevel.quantities.find(q => q.name === "available")?.quantity ?? 0;
         
+        // Log the comparison for debugging
+        log(`Comparing inventory for ${sku}: source=${sourceAvailable}, target=${targetAvailable}`, 'debug');
+        
         // Check if update is needed
         if (sourceAvailable === targetAvailable) {
             return { status: 'no_update_needed', sku, quantity: sourceAvailable };
         }
+        
+        // Log that we're attempting an update
+        log(`Attempting to update ${sku} from ${targetAvailable} to ${sourceAvailable}`, 'debug');
         
         // Update target inventory to match source using inventorySetQuantities
         const success = await updateTargetInventory(targetClient, targetVariant.inventoryItemId, targetLocationId, sourceAvailable);
@@ -355,6 +361,7 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
         if (success) {
             return { status: 'updated', sku, oldQuantity: targetAvailable, newQuantity: sourceAvailable };
         } else {
+            log(`Update failed for ${sku}: API call returned false`, 'error');
             return { status: 'update_failed', sku, sourceQuantity: sourceAvailable, targetQuantity: targetAvailable };
         }
     }, null, 1000, globalConfig);
@@ -362,12 +369,15 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
 
 async function updateTargetInventory(client, inventoryItemId, locationId, newQuantity) {
     try {
+        log(`Making API call to update inventory: item=${inventoryItemId}, location=${locationId}, quantity=${newQuantity}`, 'debug');
+        
         const response = await client.post('', {
             query: SET_INVENTORY_QUANTITIES,
             variables: {
                 input: {
                     name: "available",
                     reason: "correction",
+                    ignoreCompareQuantity: true,
                     quantities: [
                         {
                             inventoryItemId,
@@ -379,15 +389,30 @@ async function updateTargetInventory(client, inventoryItemId, locationId, newQua
             }
         });
         
+        // Log the full response for debugging
+        log(`API Response for ${inventoryItemId}: ${JSON.stringify(response.data, null, 2)}`, 'debug');
+        
         if (response.data.data.inventorySetQuantities.userErrors.length > 0) {
             const errors = response.data.data.inventorySetQuantities.userErrors;
-            log(`Error setting inventory: ${JSON.stringify(errors)}`, 'error');
+            log(`Error setting inventory for item ${inventoryItemId} at location ${locationId}: ${JSON.stringify(errors)}`, 'error');
             return false;
         }
         
+        // Log successful update for debugging
+        log(`Successfully updated inventory for item ${inventoryItemId} at location ${locationId} to quantity ${newQuantity}`, 'debug');
         return true;
     } catch (error) {
-        log(`Error setting target inventory: ${error.response?.data || error.message}`, 'error');
+        log(`Error setting target inventory for item ${inventoryItemId} at location ${locationId}: ${error.response?.data || error.message}`, 'error');
+        
+        // Log additional error details if available
+        if (error.response?.data) {
+            log(`Full error response: ${JSON.stringify(error.response.data, null, 2)}`, 'error');
+        }
+        
+        if (error.response?.status) {
+            log(`HTTP Status: ${error.response.status}`, 'error');
+        }
+        
         return false;
     }
 }

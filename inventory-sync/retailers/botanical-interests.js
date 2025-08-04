@@ -368,6 +368,7 @@ async function updateTargetInventory(client, inventoryItemId, locationId, newQua
                 input: {
                     name: "available",
                     reason: "correction",
+                    ignoreCompareQuantity: true,
                     quantities: [
                         {
                             inventoryItemId,
