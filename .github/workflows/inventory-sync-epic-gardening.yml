@@ -1,0 +1,88 @@
+name: Inventory Sync - Epic Gardening
+
+on:
+  schedule:
+    # Run inventory sync every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run even if disabled in config'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  inventory-sync-epic-gardening:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create logs directory
+      run: mkdir -p logs
+      
+    - name: Check if inventory sync is enabled
+      id: check-config
+      run: |
+        if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+          echo "force_run=true" >> $GITHUB_OUTPUT
+          echo "enabled=true" >> $GITHUB_OUTPUT
+          echo "Inventory sync forced to run"
+        else
+          # Check if inventory sync is enabled in config
+          ENABLED=$(node -e "
+            const config = JSON.parse(require('fs').readFileSync('config/retailers/epic-gardening-config.json', 'utf8'));
+            if (config.settings && config.settings.syncInventory) {
+              console.log('true');
+            } else {
+              console.log('false');
+            }
+          ")
+          echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
+          if [ "$ENABLED" = "true" ]; then
+            echo "Inventory sync is enabled for Epic Gardening"
+          else
+            echo "Inventory sync is disabled for Epic Gardening"
+          fi
+        fi
+      
+    - name: Run Epic Gardening Inventory Sync
+      if: steps.check-config.outputs.force_run == 'true' || steps.check-config.outputs.enabled == 'true'
+      env:
+        MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+        MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+        SHOPIFY_LGL_TOKEN: ${{ secrets.SHOPIFY_LGL_TOKEN }}
+        SHOPIFY_EPICGARDENING_TOKEN: ${{ secrets.SHOPIFY_EPICGARDENING_TOKEN }}
+        EMAIL_FROM: admin@livegoodlogistics.com
+        EMAIL_TO: justin@livegoodlogistics.com
+        LOG_LEVEL: info
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      run: |
+        echo "Running Epic Gardening inventory sync"
+        node inventory-sync/retailers/epic-gardening.js
+        
+    - name: Skip sync (disabled in config)
+      if: steps.check-config.outputs.force_run != 'true' && steps.check-config.outputs.enabled != 'true'
+      run: |
+        echo "Skipping Epic Gardening inventory sync - disabled in config"
+        echo "To force run, use the workflow_dispatch with force_run=true"
+        
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: inventory-sync-epic-gardening-logs-${{ github.run_id }}
+        path: logs/inventory-sync-epic-gardening-*.log
+        retention-days: 7 
