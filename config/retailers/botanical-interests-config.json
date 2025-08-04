@@ -1,9 +1,9 @@
 {
   "name": "Botanical Interests",
-  "domain": "83e136-83.myshopify.com",
+  "domain": "bi.myshopify.com",
   "apiToken": "SHOPIFY_BOTANICALINTERESTS_TOKEN",
   "lglLocationId": "84385005803",
-  "targetLocationId": "gid://shopify/Location/84385005803",
+  "targetLocationId": "gid://shopify/Location/",
   "billingAddress": {
     "email": "scheng@epicgardening.com",
     "first_name": "B2B:",
