@@ -216,8 +216,8 @@ class OrderProcessor {
       phone: shipping.phone,
     };
     const billingAddress = {
-      first_name: this.retailer.billingAddress.first_name,
-      last_name: this.retailer.billingAddress.last_name,
+      first_name: this.retailer.billingAddress.firstName,
+      last_name: this.retailer.billingAddress.lastName,
       address1: this.retailer.billingAddress.address1,
       address2: this.retailer.billingAddress.address2 || '',
       city: this.retailer.billingAddress.city,
@@ -265,7 +265,7 @@ class OrderProcessor {
     
     const orderPayload = {
       order: {
-        email: billingAddress.email,
+        email: this.retailer.billingAddress.email,
         line_items: lineItems,
         shipping_address: shippingAddress,
         billing_address: billingAddress,
