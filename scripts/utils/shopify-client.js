@@ -8,7 +8,7 @@ class ShopifyClient {
     this.apiToken = apiToken.startsWith('SHOPIFY_') && apiToken.endsWith('_TOKEN') 
       ? process.env[apiToken] || apiToken
       : apiToken;
-    this.baseUrl = `https://${domain}/admin/api/2025-07`;
+    this.baseUrl = `https://${domain}/admin/api/2024-10`;
   }
 
   async graphql(query, variables = {}, retries = 1) {
@@ -43,7 +43,7 @@ class ShopifyClient {
       const options = {
         method,
         hostname: this.domain,
-        path: `/admin/api/2025-07${path}`,
+        path: `/admin/api/2024-10${path}`,
         headers: {
           'Content-Type': 'application/json',
           'X-Shopify-Access-Token': this.apiToken,
