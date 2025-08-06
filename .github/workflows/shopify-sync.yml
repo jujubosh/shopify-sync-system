@@ -125,6 +125,13 @@ jobs:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       run: |
+        # Debug: Check if environment variables are set
+        echo "Checking environment variables..."
+        echo "SHOPIFY_EPICGARDENING_TOKEN length: ${#SHOPIFY_EPICGARDENING_TOKEN}"
+        echo "SHOPIFY_EPICGARDENING_TOKEN starts with: ${SHOPIFY_EPICGARDENING_TOKEN:0:10}..."
+        echo "SHOPIFY_LGL_TOKEN length: ${#SHOPIFY_LGL_TOKEN}"
+        echo "SUPABASE_URL length: ${#SUPABASE_URL}"
+        
         # Determine operation based on what's enabled
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           OPERATION="${{ github.event.inputs.operation }}"
