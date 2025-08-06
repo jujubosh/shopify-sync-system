@@ -1,6 +1,6 @@
 {
   "name": "Epic Gardening",
-  "domain": "eg.myshopify.com",
+  "domain": "epic-gardening.myshopify.com",
   "apiToken": "SHOPIFY_EPICGARDENING_TOKEN",
   "lglLocationId": "79407317188",
   "targetLocationId": "gid://shopify/Location/79407317188",
