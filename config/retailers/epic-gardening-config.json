@@ -2,8 +2,8 @@
   "name": "Epic Gardening",
   "domain": "eg.myshopify.com",
   "apiToken": "SHOPIFY_EPICGARDENING_TOKEN",
-  "lglLocationId": "84385005803",
-  "targetLocationId": "gid://shopify/Location/",
+  "lglLocationId": "79407317188",
+  "targetLocationId": "gid://shopify/Location/79407317188",
   "billingAddress": {
     "email": "scheng@epicgardening.com",
     "first_name": "B2B:",
