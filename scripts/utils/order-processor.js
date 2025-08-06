@@ -51,7 +51,7 @@ class OrderProcessor {
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
     const query = `
       query getOrders {
-        orders(first: 50, query: "financial_status:paid -tag:imported-to-LGL created_at:>='${lookbackTime}'") {
+        orders(first: 50, query: "financial_status:paid -tag:imported-to-LGL created_at:>=${lookbackTime}") {
           edges {
             node {
               id
