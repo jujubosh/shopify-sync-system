@@ -52,20 +52,6 @@ const QUERIES = {
                 }
               }
             }
-            fulfillmentOrders(first: 1) {
-              edges {
-                node {
-                  id
-                  status
-                  assignedLocation {
-                    location {
-                      id
-                      name
-                    }
-                  }
-                }
-              }
-            }
           }
         }
         pageInfo {

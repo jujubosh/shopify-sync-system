@@ -81,45 +81,10 @@ class OrderProcessor {
           continue;
         }
         
-        const lglFulfillmentOrderEdge = order.fulfillmentOrders.edges.find(
-          fo => fo.node.assignedLocation && fo.node.assignedLocation.location && fo.node.assignedLocation.location.id === locationGid
-        );
-        
-        if (!lglFulfillmentOrderEdge) {
-          this.logger.logInfo(`Skipping ${order.name}: no LGL fulfillment order`);
-          continue;
-        }
-        
-        const lglFulfillmentOrder = lglFulfillmentOrderEdge.node;
-        const fulfillmentLineItemIdToQty = {};
-        
-        for (const itemEdge of lglFulfillmentOrder.lineItems.edges) {
-          const item = itemEdge.node;
-          if (item.remainingQuantity > 0) {
-            fulfillmentLineItemIdToQty[item.lineItem.id] = item.remainingQuantity;
-          }
-        }
-        
-        this.logger.logInfo(`Order ${order.name}: ${Object.keys(fulfillmentLineItemIdToQty).length} line items with remaining quantity`);
-        
-        const lglLineItems = order.lineItems.edges
-          .filter(edge => fulfillmentLineItemIdToQty[edge.node.id])
-          .map(edge => ({
-            ...edge.node,
-            quantity: fulfillmentLineItemIdToQty[edge.node.id],
-          }));
-        
-        if (lglLineItems.length === 0) {
-          this.logger.logInfo(`Skipping ${order.name}: no matching line items`);
-          continue;
-        }
-        
-        this.logger.logInfo(`Order ${order.name}: ${lglLineItems.length} LGL line items - ELIGIBLE`);
-        orders.push({
-          ...order,
-          lglFulfillmentOrder,
-          lglLineItems,
-        });
+        // Skip fulfillment order check for now due to API permissions
+        // TODO: Add fulfillment order access when API permissions are updated
+        this.logger.logInfo(`Skipping ${order.name}: fulfillment order access not available with current API permissions`);
+        continue;
       }
       
       this.logger.logInfo(`Final result: ${orders.length} eligible orders`);

@@ -83,7 +83,8 @@ class FulfillmentProcessor {
         }
         
         // Must have an 'imported-from-...' tag and a numeric order number tag
-        const tags = order.tags ? order.tags.split(',').map(tag => tag.trim()) : [];
+        // Handle tags as either array (from GraphQL) or string (from REST)
+        const tags = Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map(tag => tag.trim()) : []);
         const importedFromTag = tags.find(tag => tag.startsWith('imported-from-'));
         const orderNumberTag = tags.find(tag => /^\d+$/.test(tag));
         
