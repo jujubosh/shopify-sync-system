@@ -73,61 +73,65 @@ class OrderProcessor {
       
       for (const edge of data.orders.edges) {
         const order = edge.node;
-      this.logger.logInfo(`Processing order ${order.name}`);
-      
-      if (order.cancelReason || order.cancelledAt) {
-        this.logger.logInfo(`Skipping ${order.name}: cancelled`);
-        continue;
-      }
-      
-      if (order.tags.includes('imported-to-LGL')) {
-        this.logger.logInfo(`Skipping ${order.name}: already imported`);
-        continue;
-      }
-      
-      const lglFulfillmentOrderEdge = order.fulfillmentOrders.edges.find(
-        fo => fo.node.assignedLocation && fo.node.assignedLocation.location && fo.node.assignedLocation.location.id === locationGid
-      );
-      
-      if (!lglFulfillmentOrderEdge) {
-        this.logger.logInfo(`Skipping ${order.name}: no LGL fulfillment order`);
-        continue;
-      }
-      
-      const lglFulfillmentOrder = lglFulfillmentOrderEdge.node;
-      const fulfillmentLineItemIdToQty = {};
-      
-      for (const itemEdge of lglFulfillmentOrder.lineItems.edges) {
-        const item = itemEdge.node;
-        if (item.remainingQuantity > 0) {
-          fulfillmentLineItemIdToQty[item.lineItem.id] = item.remainingQuantity;
+        this.logger.logInfo(`Processing order ${order.name}`);
+        
+        if (order.cancelReason || order.cancelledAt) {
+          this.logger.logInfo(`Skipping ${order.name}: cancelled`);
+          continue;
         }
+        
+        if (order.tags.includes('imported-to-LGL')) {
+          this.logger.logInfo(`Skipping ${order.name}: already imported`);
+          continue;
+        }
+        
+        const lglFulfillmentOrderEdge = order.fulfillmentOrders.edges.find(
+          fo => fo.node.assignedLocation && fo.node.assignedLocation.location && fo.node.assignedLocation.location.id === locationGid
+        );
+        
+        if (!lglFulfillmentOrderEdge) {
+          this.logger.logInfo(`Skipping ${order.name}: no LGL fulfillment order`);
+          continue;
+        }
+        
+        const lglFulfillmentOrder = lglFulfillmentOrderEdge.node;
+        const fulfillmentLineItemIdToQty = {};
+        
+        for (const itemEdge of lglFulfillmentOrder.lineItems.edges) {
+          const item = itemEdge.node;
+          if (item.remainingQuantity > 0) {
+            fulfillmentLineItemIdToQty[item.lineItem.id] = item.remainingQuantity;
+          }
+        }
+        
+        this.logger.logInfo(`Order ${order.name}: ${Object.keys(fulfillmentLineItemIdToQty).length} line items with remaining quantity`);
+        
+        const lglLineItems = order.lineItems.edges
+          .filter(edge => fulfillmentLineItemIdToQty[edge.node.id])
+          .map(edge => ({
+            ...edge.node,
+            quantity: fulfillmentLineItemIdToQty[edge.node.id],
+          }));
+        
+        if (lglLineItems.length === 0) {
+          this.logger.logInfo(`Skipping ${order.name}: no matching line items`);
+          continue;
+        }
+        
+        this.logger.logInfo(`Order ${order.name}: ${lglLineItems.length} LGL line items - ELIGIBLE`);
+        orders.push({
+          ...order,
+          lglFulfillmentOrder,
+          lglLineItems,
+        });
       }
       
-      this.logger.logInfo(`Order ${order.name}: ${Object.keys(fulfillmentLineItemIdToQty).length} line items with remaining quantity`);
-      
-      const lglLineItems = order.lineItems.edges
-        .filter(edge => fulfillmentLineItemIdToQty[edge.node.id])
-        .map(edge => ({
-          ...edge.node,
-          quantity: fulfillmentLineItemIdToQty[edge.node.id],
-        }));
-      
-      if (lglLineItems.length === 0) {
-        this.logger.logInfo(`Skipping ${order.name}: no matching line items`);
-        continue;
-      }
-      
-      this.logger.logInfo(`Order ${order.name}: ${lglLineItems.length} LGL line items - ELIGIBLE`);
-      orders.push({
-        ...order,
-        lglFulfillmentOrder,
-        lglLineItems,
-      });
+      this.logger.logInfo(`Final result: ${orders.length} eligible orders`);
+      return orders;
+    } catch (error) {
+      this.logger.logError(`Failed to get eligible orders: ${error.message}`);
+      throw error;
     }
-    
-    this.logger.logInfo(`Final result: ${orders.length} eligible orders`);
-    return orders;
   }
 
   async importOrder(order) {
