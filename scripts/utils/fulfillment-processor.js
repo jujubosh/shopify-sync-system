@@ -105,16 +105,20 @@ class FulfillmentProcessor {
         
         // Only process orders that were imported from the current retailer
         const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
-      if (sourceStoreName !== currentRetailerName) {
-        this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
-        continue;
+        if (sourceStoreName !== currentRetailerName) {
+          this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
+          continue;
+        }
+        
+        this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
+        orders.push({ ...order, sourceOrderNumber, sourceStoreName });
       }
       
-      this.logger.logInfo(`Adding ${order.name} to processing queue (source: ${sourceOrderNumber}, store: ${sourceStoreName})`);
-      orders.push({ ...order, sourceOrderNumber, sourceStoreName });
+      return orders;
+    } catch (error) {
+      this.logger.logError(`Failed to get fulfilled orders: ${error.message}`);
+      throw error;
     }
-    
-    return orders;
   }
 
   extractSourceInfoFromTags(tags) {
