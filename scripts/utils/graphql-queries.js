@@ -94,20 +94,6 @@ const QUERIES = {
                 url
                 company
               }
-              lineItems(first: 50) {
-                edges {
-                  node {
-                    id
-                    quantity
-                    remainingQuantity
-                    lineItem {
-                      id
-                      sku
-                      name
-                    }
-                  }
-                }
-              }
             }
           }
         }
