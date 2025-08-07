@@ -137,7 +137,10 @@ const GET_PRODUCT_BY_SKU_WITH_LEVELS = `
                             edges {
                                 node {
                                     id
-                                    available
+                                    quantities(names: ["available"]) {
+                                        name
+                                        quantity
+                                    }
                                     location {
                                         id
                                         name
@@ -169,11 +172,15 @@ const GET_ALL_PRODUCT_VARIANTS = `
 `;
 
 const UPDATE_INVENTORY_LEVEL = `
-    mutation updateInventoryLevel($input: InventoryLevelInput!) {
-        inventoryLevelUpdate(input: $input) {
-            inventoryLevel {
+    mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
+        inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup {
                 id
-                available
+                changes {
+                    name
+                    delta
+                    quantityAfterChange
+                }
             }
             userErrors {
                 field
@@ -303,7 +310,15 @@ async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
         return {
             variantId: variant.id,
             inventoryItemId: variant.inventoryItem.id,
-            inventoryLevels: variant.inventoryItem.inventoryLevels.edges.map(e => e.node)
+            inventoryLevels: variant.inventoryItem.inventoryLevels.edges.map(e => {
+                const node = e.node;
+                // Extract available quantity from the quantities array
+                const availableQuantity = node.quantities.find(q => q.name === 'available')?.quantity || 0;
+                return {
+                    ...node,
+                    available: availableQuantity
+                };
+            })
         };
     } catch (error) {
         // Handle different types of errors
@@ -347,13 +362,16 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
         }
         
         // Find the inventory level with available quantity for the source SKU
-        const sourceLevel = sourceVariant.inventoryLevels.find(l => l.available !== undefined);
+        const sourceLevel = sourceVariant.inventoryLevels.find(l => {
+            const availableObj = l.quantities.find(q => q.name === "available");
+            return availableObj !== undefined;
+        });
         
         if (!sourceLevel) {
             return { status: 'source_no_inventory', sku };
         }
         
-        const sourceAvailable = sourceLevel.available;
+        const sourceAvailable = sourceLevel.quantities.find(q => q.name === "available").quantity;
         
         // Get target inventory item and levels
         const targetVariant = await getProductVariantAndInventoryItemIdAndLevels(targetClient, sku);
@@ -398,17 +416,23 @@ async function updateTargetInventory(client, inventoryItemId, locationId, newQua
         
         const response = await client.graphql(UPDATE_INVENTORY_LEVEL, {
             input: {
-                inventoryItemId,
-                locationId,
-                available: newQuantity
+                ignoreCompareQuantity: false,
+                reason: "correction",
+                quantities: [
+                    {
+                        inventoryItemId,
+                        locationId,
+                        quantity: newQuantity
+                    }
+                ]
             }
         });
         
         // Log the full response for debugging
         log(`API Response for ${inventoryItemId}: ${JSON.stringify(response, null, 2)}`, 'debug');
         
-        if (response.inventoryLevelUpdate.userErrors.length > 0) {
-            const errors = response.inventoryLevelUpdate.userErrors;
+        if (response.inventorySetQuantities.userErrors.length > 0) {
+            const errors = response.inventorySetQuantities.userErrors;
             log(`Error setting inventory for item ${inventoryItemId} at location ${locationId}: ${JSON.stringify(errors)}`, 'error');
             return false;
         }
