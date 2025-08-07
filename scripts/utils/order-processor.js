@@ -55,12 +55,8 @@ class OrderProcessor {
   }
 
   async getEligibleOrders() {
-    const lookbackHours = this.retailer.settings.lookbackHours || this.config.defaults.lookbackHours;
-    const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
-    
     // Use optimized query from centralized queries
     const variables = {
-      lookbackTime,
       first: 50
     };
     

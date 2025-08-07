@@ -7,8 +7,8 @@
 const QUERIES = {
   // Optimized order query - fetches only essential data
   getEligibleOrders: `
-    query getEligibleOrders($lookbackTime: DateTime!, $first: Int!) {
-      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL created_at:>=$lookbackTime") {
+    query getEligibleOrders($first: Int!) {
+      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL") {
         edges {
           node {
             id
@@ -78,8 +78,8 @@ const QUERIES = {
 
   // Optimized fulfillment query - replaces REST API usage
   getFulfilledOrders: `
-    query getFulfilledOrders($lookbackTime: DateTime!, $first: Int!) {
-      orders(first: $first, query: "fulfillment_status:fulfilled created_at:>=$lookbackTime -tag:fulfillment-pushed") {
+    query getFulfilledOrders($first: Int!) {
+      orders(first: $first, query: "fulfillment_status:fulfilled -tag:fulfillment-pushed") {
         edges {
           node {
             id
@@ -87,27 +87,23 @@ const QUERIES = {
             tags
             displayFulfillmentStatus
             fulfillments(first: 10) {
-              edges {
-                node {
-                  id
-                  status
-                  trackingInfo {
-                    number
-                    url
-                    company
-                  }
-                  lineItems(first: 50) {
-                    edges {
-                      node {
-                        id
-                        quantity
-                        remainingQuantity
-                        lineItem {
-                          id
-                          sku
-                          name
-                        }
-                      }
+              id
+              status
+              trackingInfo {
+                number
+                url
+                company
+              }
+              lineItems(first: 50) {
+                edges {
+                  node {
+                    id
+                    quantity
+                    remainingQuantity
+                    lineItem {
+                      id
+                      sku
+                      name
                     }
                   }
                 }
