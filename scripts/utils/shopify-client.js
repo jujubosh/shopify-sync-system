@@ -12,7 +12,8 @@ class ShopifyAPIError extends Error {
 
 class GraphQLError extends Error {
   constructor(errors) {
-    super('GraphQL errors occurred');
+    const errorMessages = errors.map(err => err.message).join('; ');
+    super(`GraphQL errors occurred: ${errorMessages}`);
     this.name = 'GraphQLError';
     this.errors = errors;
   }

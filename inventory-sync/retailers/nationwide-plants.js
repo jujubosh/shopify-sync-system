@@ -307,7 +307,16 @@ async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
         };
     } catch (error) {
         // Handle different types of errors
-        if (error.response) {
+        if (error.name === 'GraphQLError' && error.errors) {
+            // GraphQL errors with details
+            log(`GraphQL errors for SKU ${sku}:`, 'error');
+            error.errors.forEach((err, index) => {
+                log(`  Error ${index + 1}: ${err.message}`, 'error');
+                if (err.extensions) {
+                    log(`    Extensions: ${JSON.stringify(err.extensions)}`, 'error');
+                }
+            });
+        } else if (error.response) {
             // API error with response
             log(`API error for SKU ${sku}: ${error.response.status} - ${error.response.statusText}`, 'error');
             if (error.response.data) {
