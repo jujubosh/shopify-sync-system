@@ -61,9 +61,13 @@ class FulfillmentProcessor {
   }
 
   async getFulfilledTargetOrders() {
+    const lookbackHours = this.config.defaults.fulfillmentLookbackHours;
+    const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
+    
     // Use GraphQL instead of REST API
     const variables = {
-      first: 100
+      first: 100,
+      lookbackTime
     };
     
     try {

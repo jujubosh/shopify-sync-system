@@ -7,8 +7,8 @@
 const QUERIES = {
   // Optimized order query - fetches only essential data
   getEligibleOrders: `
-    query getEligibleOrders($first: Int!) {
-      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL") {
+    query getEligibleOrders($first: Int!, $lookbackTime: DateTime!) {
+      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL created_at:>=$lookbackTime") {
         edges {
           node {
             id
@@ -64,8 +64,8 @@ const QUERIES = {
 
   // Optimized fulfillment query - replaces REST API usage
   getFulfilledOrders: `
-    query getFulfilledOrders($first: Int!) {
-      orders(first: $first, query: "fulfillment_status:fulfilled -tag:fulfillment-pushed") {
+    query getFulfilledOrders($first: Int!, $lookbackTime: DateTime!) {
+      orders(first: $first, query: "fulfillment_status:fulfilled -tag:fulfillment-pushed created_at:>=$lookbackTime") {
         edges {
           node {
             id
