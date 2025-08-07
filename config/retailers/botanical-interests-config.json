@@ -1,9 +1,9 @@
 {
   "name": "Botanical Interests",
-  "domain": "bi.myshopify.com",
+  "domain": "epic-gardening-uk.myshopify.com",
   "apiToken": "SHOPIFY_BOTANICALINTERESTS_TOKEN",
-  "lglLocationId": "84385005803",
-  "targetLocationId": "gid://shopify/Location/",
+  "lglLocationId": "85126185213",
+  "targetLocationId": "gid://shopify/Location/85126185213",
   "billingAddress": {
     "email": "scheng@epicgardening.com",
     "first_name": "B2B:",
