@@ -543,8 +543,11 @@ ${JSON.stringify(results.orders, null, 2)}
 
     await this.logActivity('inventory', results, true);
 
-    // Update subject line to show successful updates instead of total
-    const subject = `Inventory: ${successfulUpdates} SKUs updated successfully`;
+    // Extract retailer name from details for subject line
+    const retailerName = this.extractRetailerName(results.inventory);
+    
+    // Update subject line to include retailer name and show successful updates
+    const subject = `Inventory [${retailerName}]: ${successfulUpdates} SKUs updated successfully`;
     const timestamp = new Date().toISOString();
     
     const textBody = `
@@ -627,6 +630,21 @@ ${JSON.stringify(summary, null, 2)}
       return `${this.emailSubjectPrefix}[Run #${runNumber}] ${subject}`;
     }
     return `${this.emailSubjectPrefix}${subject}`;
+  }
+
+  // Extract retailer name from inventory results
+  extractRetailerName(inventory) {
+    // Try to get retailer name from details
+    if (inventory.details?.successfulUpdates?.length > 0) {
+      return inventory.details.successfulUpdates[0].retailer;
+    }
+    if (inventory.details?.locationMismatches?.length > 0) {
+      return inventory.details.locationMismatches[0].retailer;
+    }
+    if (inventory.details?.failures?.length > 0) {
+      return inventory.details.failures[0].retailer;
+    }
+    return 'Unknown Retailer';
   }
 
   // Enhanced email sending with GitHub Actions context
