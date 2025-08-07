@@ -104,11 +104,7 @@ async function main() {
         summary.results.fulfillments = await processFulfillments(retailers, config);
         summary.results.orders = await processOrders(retailers, config);
         
-        // Debug logging to see the exact structure
-        console.log('DEBUG: Orders results structure:', JSON.stringify(summary.results.orders, null, 2));
-        console.log('DEBUG: Orders total:', summary.results.orders.total);
-        console.log('DEBUG: Orders success length:', summary.results.orders.success?.length);
-        console.log('DEBUG: Orders errors length:', summary.results.orders.errors?.length);
+        // Send individual alerts for each operation
         
         // Send individual alerts for each operation
         await emailNotifier.sendFulfillmentAlert(summary.results);

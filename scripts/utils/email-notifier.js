@@ -539,7 +539,6 @@ ${JSON.stringify(results.inventory, null, 2)}
 
     // Only send summary if there's significant activity
     if (!this.hasSignificantActivity(summary.results)) {
-      console.log('📧 No significant activity detected, skipping summary email');
       return;
     }
 

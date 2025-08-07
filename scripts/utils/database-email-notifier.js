@@ -254,21 +254,17 @@ class DatabaseEmailNotifier {
 
   hasSignificantActivity(results) {
     if (!results) {
-      console.log('🔍 No results provided to hasSignificantActivity');
       return false;
     }
     
     let totalActivity = 0;
     let hasErrors = false;
     
-    console.log('🔍 Checking for significant activity:', JSON.stringify(results, null, 2));
-    
     // Check fulfillments
     if (results.fulfillments) {
       const fulfillmentActivity = results.fulfillments.total || 0;
       totalActivity += fulfillmentActivity;
       if (results.fulfillments.errors?.length > 0) hasErrors = true;
-      console.log(`📦 Fulfillments: ${fulfillmentActivity} activity, ${results.fulfillments.errors?.length || 0} errors`);
     }
     
     // Check orders
@@ -276,7 +272,6 @@ class DatabaseEmailNotifier {
       const orderActivity = results.orders.total || 0;
       totalActivity += orderActivity;
       if (results.orders.errors?.length > 0) hasErrors = true;
-      console.log(`📦 Orders: ${orderActivity} activity, ${results.orders.errors?.length || 0} errors`);
     }
     
     // Check inventory
@@ -284,22 +279,15 @@ class DatabaseEmailNotifier {
       const inventoryActivity = results.inventory.total || 0;
       totalActivity += inventoryActivity;
       if (results.inventory.failures > 0) hasErrors = true;
-      console.log(`📦 Inventory: ${inventoryActivity} activity, ${results.inventory.failures || 0} failures`);
     }
-    
-    console.log(`📊 Total activity: ${totalActivity}, Has errors: ${hasErrors}`);
     
     // In GitHub Actions mode, always send emails if there's any activity or errors
     if (this.isGitHubActionsEnvironment()) {
-      const shouldSend = totalActivity > 0 || hasErrors;
-      console.log(`🚀 GitHub Actions mode: ${shouldSend ? 'SEND' : 'SKIP'} email`);
-      return shouldSend;
+      return totalActivity > 0 || hasErrors;
     }
     
     // For non-GitHub Actions environments, use the threshold
-    const shouldSend = totalActivity >= this.minActivityThreshold;
-    console.log(`🏠 Local mode: ${shouldSend ? 'SEND' : 'SKIP'} email (threshold: ${this.minActivityThreshold})`);
-    return shouldSend;
+    return totalActivity >= this.minActivityThreshold;
   }
 
   async sendEmailWithRetry(subject, body, isError = false, htmlBody = null, operation = 'general', retryCount = 0) {
@@ -443,19 +431,14 @@ ${JSON.stringify(context, null, 2)}
   }
 
   async sendFulfillmentAlert(results) {
-    console.log('🔍 sendFulfillmentAlert called with:', JSON.stringify(results?.fulfillments, null, 2));
-    
     if (!this.sendFulfillmentAlerts || !results?.fulfillments) {
-      console.log('📧 Fulfillment alerts disabled or no fulfillments results');
       return;
     }
 
     // Use the actual total from results, not calculated from arrays
     const totalFulfillments = results.fulfillments.total || 0;
-    console.log(`📧 Total fulfillments: ${totalFulfillments}`);
     
     if (totalFulfillments === 0) {
-      console.log('📧 No fulfillments to process, skipping email');
       return;
     }
 
@@ -582,7 +565,6 @@ ${JSON.stringify(results.inventory, null, 2)}
 
     // Only send summary if there's significant activity
     if (!this.hasSignificantActivity(summary.results)) {
-      console.log('📧 No significant activity detected, skipping summary email');
       return;
     }
 
