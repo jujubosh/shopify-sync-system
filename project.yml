@@ -1,8 +1,0 @@
-packages:
-- name: shopify-order-processor
-  functions:
-  - name: do-import-orders
-    runtime: nodejs:default
-    main: packages/shopify-order-processor/do-import-orders.js
-    environment:
-      NODE_ENV: production 
