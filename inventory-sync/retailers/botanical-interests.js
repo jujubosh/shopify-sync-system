@@ -97,6 +97,25 @@ function getSourceStoreConfig(globalConfig) {
 
 // Target store configuration (Botanical Interests)
 function getTargetStoreConfig(retailerConfig) {
+    // Check if domain is missing from database, try to get it from config file
+    if (!retailerConfig.domain) {
+        log(`Domain missing from database, trying config file...`, 'warn');
+        try {
+            const configFile = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            if (configFile.domain) {
+                log(`Using domain from config file: ${configFile.domain}`, 'info');
+                return {
+                    domain: configFile.domain,
+                    apiToken: resolveApiToken(retailerConfig.apiToken)
+                };
+            }
+        } catch (configError) {
+            log(`Failed to load config file: ${configError.message}`, 'warn');
+        }
+        
+        throw new Error(`Missing domain in retailer configuration. Available fields: ${Object.keys(retailerConfig).join(', ')}`);
+    }
+    
     return {
         domain: retailerConfig.domain,
         apiToken: resolveApiToken(retailerConfig.apiToken)
