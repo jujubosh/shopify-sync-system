@@ -223,11 +223,7 @@ function getShopifyClient(store) {
     // Load API configuration
     const apiConfig = loadApiConfig();
     
-    return new ShopifyClient({
-        domain: store.domain,
-        accessToken: store.apiToken,
-        ...apiConfig // Spread the API config to include all settings
-    });
+    return new ShopifyClient(store.domain, store.apiToken, apiConfig);
 }
 
 async function fetchAllSkus(client) {
