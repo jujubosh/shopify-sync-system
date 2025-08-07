@@ -1,9 +1,9 @@
-const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { DatabaseEmailNotifier } = require('../../scripts/utils/database-email-notifier');
 const { RetailerService } = require('../../scripts/utils/retailer-service');
+const { ShopifyClient } = require('../../scripts/utils/shopify-client');
 
 // Load environment variables from .env.local if it exists
 const envPath = path.join(process.cwd(), '.env.local');
@@ -16,6 +16,7 @@ if (fs.existsSync(envPath)) {
 const CONFIG_PATH = path.join(__dirname, '../../config/retailers/nationwide-plants-config.json');
 const LOG_DIR = path.join(__dirname, '../../logs');
 const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config.json');
+const API_CONFIG_PATH = path.join(__dirname, '../../config/shopify-api-config.json');
 
 // Load retailer configuration
 async function loadRetailerConfig() {
@@ -60,6 +61,22 @@ function loadGlobalConfig() {
     }
 }
 
+// Load API configuration
+function loadApiConfig() {
+    try {
+        if (fs.existsSync(API_CONFIG_PATH)) {
+            const apiConfig = JSON.parse(fs.readFileSync(API_CONFIG_PATH, 'utf8'));
+            console.log('Loaded Shopify API configuration');
+            return apiConfig;
+        }
+        console.warn('API config file not found, using default settings');
+        return null;
+    } catch (error) {
+        console.warn('Failed to load API config:', error.message);
+        return null;
+    }
+}
+
 // Resolve API token with fallback logic (same as ShopifyClient)
 function resolveApiToken(token) {
     // If it's an environment variable placeholder, resolve it
@@ -73,20 +90,18 @@ function resolveApiToken(token) {
 // Source store configuration (LGL - source of truth)
 function getSourceStoreConfig(globalConfig) {
     return {
-        url: globalConfig?.lglStore?.domain || '12ffec-3.myshopify.com',
-        accessToken: resolveApiToken(globalConfig?.lglStore?.apiToken || process.env.SHOPIFY_LGL_TOKEN)
+        domain: globalConfig?.lglStore?.domain || '12ffec-3.myshopify.com',
+        apiToken: resolveApiToken(globalConfig?.lglStore?.apiToken || process.env.SHOPIFY_LGL_TOKEN)
     };
 }
 
 // Target store configuration (Nationwide Plants)
 function getTargetStoreConfig(retailerConfig) {
     return {
-        url: retailerConfig.domain,
-        accessToken: resolveApiToken(retailerConfig.apiToken)
+        domain: retailerConfig.domain,
+        apiToken: resolveApiToken(retailerConfig.apiToken)
     };
 }
-
-
 
 // GraphQL queries
 const GET_PRODUCT_BY_SKU_WITH_LEVELS = `
@@ -98,16 +113,15 @@ const GET_PRODUCT_BY_SKU_WITH_LEVELS = `
                     sku
                     inventoryItem {
                         id
+                        tracked
                         inventoryLevels(first: 10) {
                             edges {
                                 node {
                                     id
+                                    available
                                     location {
                                         id
-                                    }
-                                    quantities(names: ["available"]) {
                                         name
-                                        quantity
                                     }
                                 }
                             }
@@ -119,26 +133,28 @@ const GET_PRODUCT_BY_SKU_WITH_LEVELS = `
     }
 `;
 
-const UPDATE_INVENTORY = `
-    mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
-        inventoryAdjustQuantities(input: $input) {
-            userErrors {
-                field
-                message
+const GET_ALL_PRODUCT_VARIANTS = `
+    query getProductVariants($after: String) {
+        productVariants(first: 250, after: $after) {
+            edges {
+                node {
+                    sku
+                }
+                cursor
+            }
+            pageInfo {
+                hasNextPage
             }
         }
     }
 `;
 
-const SET_INVENTORY_QUANTITIES = `
-    mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
-        inventorySetQuantities(input: $input) {
-            inventoryAdjustmentGroup {
-                reason
-                changes {
-                    name
-                    delta
-                }
+const UPDATE_INVENTORY_LEVEL = `
+    mutation updateInventoryLevel($input: InventoryLevelInput!) {
+        inventoryLevelUpdate(input: $input) {
+            inventoryLevel {
+                id
+                available
             }
             userErrors {
                 field
@@ -181,17 +197,17 @@ async function retryWithBackoff(fn, maxRetries = null, initialDelay = 1000, glob
 }
 
 function getShopifyClient(store) {
-    if (!store.accessToken) {
-        throw new Error(`Missing access token for store: ${store.url}`);
+    if (!store.apiToken) {
+        throw new Error(`Missing API token for store: ${store.domain}`);
     }
     
-    return axios.create({
-        baseURL: `https://${store.url}/admin/api/2025-04/graphql.json`,
-        headers: {
-            'X-Shopify-Access-Token': store.accessToken,
-            'Content-Type': 'application/json'
-        },
-        timeout: 30000 // 30 second timeout
+    // Load API configuration
+    const apiConfig = loadApiConfig();
+    
+    return new ShopifyClient({
+        domain: store.domain,
+        accessToken: store.apiToken,
+        ...apiConfig // Spread the API config to include all settings
     });
 }
 
@@ -222,16 +238,13 @@ async function fetchAllSkus(client) {
         `;
         
         try {
-            const response = await client.post('', {
-                query,
-                variables: { after: cursor }
-            });
+            const response = await client.graphql(query, { after: cursor });
             
-            const edges = response.data.data.productVariants.edges;
+            const edges = response.productVariants.edges;
             const newSkus = edges.map(edge => edge.node.sku).filter(Boolean);
             allSkus = allSkus.concat(newSkus);
             
-            hasNextPage = response.data.data.productVariants.pageInfo.hasNextPage;
+            hasNextPage = response.productVariants.pageInfo.hasNextPage;
             cursor = edges.length > 0 ? edges[edges.length - 1].cursor : null;
             
             log(`Fetched page ${pageCount}: ${newSkus.length} SKUs (total: ${allSkus.length})`);
@@ -252,24 +265,15 @@ async function fetchAllSkus(client) {
 
 async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
     try {
-        const response = await client.post('', {
-            query: GET_PRODUCT_BY_SKU_WITH_LEVELS,
-            variables: { sku: `sku:${sku}` }
-        });
+        const response = await client.graphql(GET_PRODUCT_BY_SKU_WITH_LEVELS, { sku: `sku:${sku}` });
         
         // Check if response has the expected structure
-        if (!response.data || !response.data.data) {
-            log(`Invalid API response for SKU ${sku}: ${JSON.stringify(response.data)}`, 'error');
+        if (!response || !response.productVariants) {
+            log(`Invalid API response for SKU ${sku}: ${JSON.stringify(response)}`, 'error');
             return null;
         }
         
-        // Check if productVariants exists
-        if (!response.data.data.productVariants) {
-            log(`No productVariants in response for SKU ${sku}: ${JSON.stringify(response.data.data)}`, 'error');
-            return null;
-        }
-        
-        const variant = response.data.data.productVariants.edges[0]?.node;
+        const variant = response.productVariants.edges[0]?.node;
         if (!variant) {
             log(`No variant found for SKU: ${sku}`, 'warn');
             return null;
@@ -319,16 +323,13 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
         }
         
         // Find the inventory level with available quantity for the source SKU
-        const sourceLevel = sourceVariant.inventoryLevels.find(l => {
-            const availableObj = l.quantities.find(q => q.name === "available");
-            return availableObj !== undefined;
-        });
+        const sourceLevel = sourceVariant.inventoryLevels.find(l => l.available !== undefined);
         
         if (!sourceLevel) {
             return { status: 'source_no_inventory', sku };
         }
         
-        const sourceAvailable = sourceLevel.quantities.find(q => q.name === "available").quantity;
+        const sourceAvailable = sourceLevel.available;
         
         // Get target inventory item and levels
         const targetVariant = await getProductVariantAndInventoryItemIdAndLevels(targetClient, sku);
@@ -342,7 +343,7 @@ async function syncInventory(sku, sourceClient, targetClient, targetLocationId, 
             return { status: 'target_location_not_found', sku, sourceQuantity: sourceAvailable };
         }
         
-        const targetAvailable = targetLevel.quantities.find(q => q.name === "available")?.quantity ?? 0;
+        const targetAvailable = targetLevel.available ?? 0;
         
         // Log the comparison for debugging
         log(`Comparing inventory for ${sku}: source=${sourceAvailable}, target=${targetAvailable}`, 'debug');
@@ -371,29 +372,19 @@ async function updateTargetInventory(client, inventoryItemId, locationId, newQua
     try {
         log(`Making API call to update inventory: item=${inventoryItemId}, location=${locationId}, quantity=${newQuantity}`, 'debug');
         
-        const response = await client.post('', {
-            query: SET_INVENTORY_QUANTITIES,
-            variables: {
-                input: {
-                    name: "available",
-                    reason: "correction",
-                    ignoreCompareQuantity: true,
-                    quantities: [
-                        {
-                            inventoryItemId,
-                            locationId,
-                            quantity: newQuantity
-                        }
-                    ]
-                }
+        const response = await client.graphql(UPDATE_INVENTORY_LEVEL, {
+            input: {
+                inventoryItemId,
+                locationId,
+                available: newQuantity
             }
         });
         
         // Log the full response for debugging
-        log(`API Response for ${inventoryItemId}: ${JSON.stringify(response.data, null, 2)}`, 'debug');
+        log(`API Response for ${inventoryItemId}: ${JSON.stringify(response, null, 2)}`, 'debug');
         
-        if (response.data.data.inventorySetQuantities.userErrors.length > 0) {
-            const errors = response.data.data.inventorySetQuantities.userErrors;
+        if (response.inventoryLevelUpdate.userErrors.length > 0) {
+            const errors = response.inventoryLevelUpdate.userErrors;
             log(`Error setting inventory for item ${inventoryItemId} at location ${locationId}: ${JSON.stringify(errors)}`, 'error');
             return false;
         }
@@ -439,15 +430,15 @@ async function main(args) {
         const sourceStoreConfig = getSourceStoreConfig(globalConfig);
         const targetStoreConfig = getTargetStoreConfig(retailerConfig);
 
-        if (!sourceStoreConfig.accessToken) {
+        if (!sourceStoreConfig.apiToken) {
             throw new Error('Missing source store API token (SHOPIFY_LGL_TOKEN or database token)');
         }
-        if (!targetStoreConfig.accessToken) {
+        if (!targetStoreConfig.apiToken) {
             throw new Error('Missing target store API token (SHOPIFY_NATIONWIDE_PLANTS_TOKEN or database token)');
         }
         
-        log(`Using source store: ${sourceStoreConfig.url}`);
-        log(`Using target store: ${targetStoreConfig.url}`);
+        log(`Using source store: ${sourceStoreConfig.domain}`);
+        log(`Using target store: ${targetStoreConfig.domain}`);
         
         const sourceClient = getShopifyClient(sourceStoreConfig);
         const targetClient = getShopifyClient(targetStoreConfig);

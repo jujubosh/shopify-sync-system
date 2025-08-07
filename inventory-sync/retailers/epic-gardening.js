@@ -1,9 +1,9 @@
-const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { DatabaseEmailNotifier } = require('../../scripts/utils/database-email-notifier');
 const { RetailerService } = require('../../scripts/utils/retailer-service');
+const { ShopifyClient } = require('../../scripts/utils/shopify-client');
 
 // Load environment variables from .env.local if it exists
 const envPath = path.join(process.cwd(), '.env.local');
@@ -16,6 +16,7 @@ if (fs.existsSync(envPath)) {
 const CONFIG_PATH = path.join(__dirname, '../../config/retailers/epic-gardening-config.json');
 const LOG_DIR = path.join(__dirname, '../../logs');
 const GLOBAL_CONFIG_PATH = path.join(__dirname, '../../config/global-config.json');
+const API_CONFIG_PATH = path.join(__dirname, '../../config/shopify-api-config.json');
 
 // Load retailer configuration
 async function loadRetailerConfig() {
@@ -60,6 +61,22 @@ function loadGlobalConfig() {
     }
 }
 
+// Load API configuration
+function loadApiConfig() {
+    try {
+        if (fs.existsSync(API_CONFIG_PATH)) {
+            const apiConfig = JSON.parse(fs.readFileSync(API_CONFIG_PATH, 'utf8'));
+            console.log('Loaded Shopify API configuration');
+            return apiConfig;
+        }
+        console.warn('API config file not found, using default settings');
+        return null;
+    } catch (error) {
+        console.warn('Failed to load API config:', error.message);
+        return null;
+    }
+}
+
 // Resolve API token with fallback logic (same as ShopifyClient)
 function resolveApiToken(token) {
     // If it's an environment variable placeholder, resolve it
@@ -73,16 +90,16 @@ function resolveApiToken(token) {
 // Source store configuration (LGL - source of truth)
 function getSourceStoreConfig(globalConfig) {
     return {
-        url: globalConfig?.lglStore?.domain || '12ffec-3.myshopify.com',
-        accessToken: resolveApiToken(globalConfig?.lglStore?.apiToken || process.env.SHOPIFY_LGL_TOKEN)
+        domain: globalConfig?.lglStore?.domain || '12ffec-3.myshopify.com',
+        apiToken: resolveApiToken(globalConfig?.lglStore?.apiToken || process.env.SHOPIFY_LGL_TOKEN)
     };
 }
 
 // Target store configuration (Epic Gardening)
 function getTargetStoreConfig(retailerConfig) {
     return {
-        url: retailerConfig.domain,
-        accessToken: resolveApiToken(retailerConfig.apiToken)
+        domain: retailerConfig.domain,
+        apiToken: resolveApiToken(retailerConfig.apiToken)
     };
 }
 
@@ -181,17 +198,17 @@ async function retryWithBackoff(fn, maxRetries = null, initialDelay = 1000, glob
 }
 
 function getShopifyClient(store) {
-    if (!store.accessToken) {
-        throw new Error(`Missing access token for store: ${store.url}`);
+    if (!store.apiToken) {
+        throw new Error(`Missing API token for store: ${store.domain}`);
     }
     
-    return axios.create({
-        baseURL: `https://${store.url}/admin/api/2025-04/graphql.json`,
-        headers: {
-            'X-Shopify-Access-Token': store.accessToken,
-            'Content-Type': 'application/json'
-        },
-        timeout: 30000 // 30 second timeout
+    // Load API configuration
+    const apiConfig = loadApiConfig();
+    
+    return new ShopifyClient({
+        domain: store.domain,
+        accessToken: store.apiToken,
+        ...apiConfig // Spread the API config to include all settings
     });
 }
 
@@ -222,16 +239,13 @@ async function fetchAllSkus(client) {
         `;
         
         try {
-            const response = await client.post('', {
-                query,
-                variables: { after: cursor }
-            });
+            const response = await client.graphql(query, { after: cursor });
             
-            const edges = response.data.data.productVariants.edges;
+            const edges = response.productVariants.edges;
             const newSkus = edges.map(edge => edge.node.sku).filter(Boolean);
             allSkus = allSkus.concat(newSkus);
             
-            hasNextPage = response.data.data.productVariants.pageInfo.hasNextPage;
+            hasNextPage = response.productVariants.pageInfo.hasNextPage;
             cursor = edges.length > 0 ? edges[edges.length - 1].cursor : null;
             
             log(`Fetched page ${pageCount}: ${newSkus.length} SKUs (total: ${allSkus.length})`);
@@ -252,24 +266,15 @@ async function fetchAllSkus(client) {
 
 async function getProductVariantAndInventoryItemIdAndLevels(client, sku) {
     try {
-        const response = await client.post('', {
-            query: GET_PRODUCT_BY_SKU_WITH_LEVELS,
-            variables: { sku: `sku:${sku}` }
-        });
+        const response = await client.graphql(GET_PRODUCT_BY_SKU_WITH_LEVELS, { sku: `sku:${sku}` });
         
         // Check if response has the expected structure
-        if (!response.data || !response.data.data) {
-            log(`Invalid API response for SKU ${sku}: ${JSON.stringify(response.data)}`, 'error');
+        if (!response || !response.productVariants) {
+            log(`Invalid API response for SKU ${sku}: ${JSON.stringify(response)}`, 'error');
             return null;
         }
         
-        // Check if productVariants exists
-        if (!response.data.data.productVariants) {
-            log(`No productVariants in response for SKU ${sku}: ${JSON.stringify(response.data.data)}`, 'error');
-            return null;
-        }
-        
-        const variant = response.data.data.productVariants.edges[0]?.node;
+        const variant = response.productVariants.edges[0]?.node;
         if (!variant) {
             log(`No variant found for SKU: ${sku}`, 'warn');
             return null;
