@@ -4,11 +4,22 @@
  * and follow Shopify's best practices for performance
  */
 
+// Helper function to build time-filtered queries
+function buildTimeFilteredQuery(baseQuery, lookbackTime) {
+  const timeFilter = `created_at:>=${lookbackTime}`;
+  return baseQuery.replace('"financial_status:paid -tag:imported-to-LGL"', `"financial_status:paid -tag:imported-to-LGL ${timeFilter}"`);
+}
+
+function buildFulfillmentTimeFilteredQuery(baseQuery, lookbackTime) {
+  const timeFilter = `created_at:>=${lookbackTime}`;
+  return baseQuery.replace('"fulfillment_status:fulfilled -tag:fulfillment-pushed"', `"fulfillment_status:fulfilled -tag:fulfillment-pushed ${timeFilter}"`);
+}
+
 const QUERIES = {
   // Optimized order query - fetches only essential data
   getEligibleOrders: `
-    query getEligibleOrders($first: Int!, $lookbackTime: DateTime!) {
-      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL created_at:>=$lookbackTime") {
+    query getEligibleOrders($first: Int!) {
+      orders(first: $first, query: "financial_status:paid -tag:imported-to-LGL") {
         edges {
           node {
             id
@@ -64,8 +75,8 @@ const QUERIES = {
 
   // Optimized fulfillment query - replaces REST API usage
   getFulfilledOrders: `
-    query getFulfilledOrders($first: Int!, $lookbackTime: DateTime!) {
-      orders(first: $first, query: "fulfillment_status:fulfilled -tag:fulfillment-pushed created_at:>=$lookbackTime") {
+    query getFulfilledOrders($first: Int!) {
+      orders(first: $first, query: "fulfillment_status:fulfilled -tag:fulfillment-pushed") {
         edges {
           node {
             id
@@ -283,5 +294,7 @@ module.exports = {
   QUERIES,
   buildOrderInput,
   buildFulfillmentInput,
-  addTags
+  addTags,
+  buildTimeFilteredQuery,
+  buildFulfillmentTimeFilteredQuery
 };

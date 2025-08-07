@@ -1,6 +1,6 @@
 const { ShopifyClient } = require('./shopify-client');
 const { Logger } = require('./logger');
-const { QUERIES, buildFulfillmentInput, addTags } = require('./graphql-queries');
+const { QUERIES, buildFulfillmentInput, addTags, buildFulfillmentTimeFilteredQuery } = require('./graphql-queries');
 const fs = require('fs');
 const path = require('path');
 
@@ -64,14 +64,16 @@ class FulfillmentProcessor {
     const lookbackHours = this.config.defaults.fulfillmentLookbackHours;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
     
+    // Build time-filtered query
+    const query = buildFulfillmentTimeFilteredQuery(QUERIES.getFulfilledOrders, lookbackTime);
+    
     // Use GraphQL instead of REST API
     const variables = {
-      first: 100,
-      lookbackTime
+      first: 100
     };
     
     try {
-      const data = await this.lglClient.graphql(QUERIES.getFulfilledOrders, variables);
+      const data = await this.lglClient.graphql(query, variables);
       const orders = [];
       
       this.logger.logInfo(`Found ${data.orders.edges.length} orders from GraphQL query`);

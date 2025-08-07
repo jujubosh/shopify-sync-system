@@ -1,6 +1,6 @@
 const { ShopifyClient } = require('./shopify-client');
 const { Logger } = require('./logger');
-const { QUERIES, buildOrderInput, addTags } = require('./graphql-queries');
+const { QUERIES, buildOrderInput, addTags, buildTimeFilteredQuery } = require('./graphql-queries');
 const fs = require('fs');
 const path = require('path');
 
@@ -58,14 +58,16 @@ class OrderProcessor {
     const lookbackHours = this.retailer.settings.lookbackHours || this.config.defaults.lookbackHours;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
     
+    // Build time-filtered query
+    const query = buildTimeFilteredQuery(QUERIES.getEligibleOrders, lookbackTime);
+    
     // Use optimized query from centralized queries
     const variables = {
-      first: 50,
-      lookbackTime
+      first: 50
     };
     
     try {
-      const data = await this.retailClient.graphql(QUERIES.getEligibleOrders, variables);
+      const data = await this.retailClient.graphql(query, variables);
       const orders = [];
       const locationGid = `gid://shopify/Location/${this.retailer.lglLocationId}`;
       
