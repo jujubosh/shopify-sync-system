@@ -1,14 +1,22 @@
 const { ShopifyClient } = require('./shopify-client');
 const { Logger } = require('./logger');
+const { QUERIES, buildFulfillmentInput, addTags } = require('./graphql-queries');
+const fs = require('fs');
+const path = require('path');
 
 class FulfillmentProcessor {
   constructor(retailer, config) {
     this.retailer = retailer;
     this.config = config;
+    
+    // Load API configuration
+    const apiConfigPath = path.join(__dirname, '../../config/shopify-api-config.json');
+    const apiConfig = JSON.parse(fs.readFileSync(apiConfigPath, 'utf8'));
+    
     // LGL store (source) - where fulfillments are created
-    this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken);
+    this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken, apiConfig);
     // Retail store (target) - where fulfillments are pushed back to
-    this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken);
+    this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken, apiConfig);
     this.logger = new Logger(retailer.id || retailer.name, config);
   }
 
@@ -56,48 +64,47 @@ class FulfillmentProcessor {
     const lookbackHours = this.config.defaults.fulfillmentLookbackHours;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
     
-    // Use REST API to get orders with fulfillments
-    const path = `/orders.json?status=any&limit=100&created_at_min=${lookbackTime}`;
-    const data = await this.lglClient.rest('GET', path);
+    // Use GraphQL instead of REST API
+    const variables = {
+      lookbackTime,
+      first: 100
+    };
     
-    const orders = [];
-    
-    this.logger.logInfo(`Found ${data.orders.length} orders from REST API query`);
-    
-    for (const order of data.orders) {
-      this.logger.logInfo(`Processing order ${order.name}`);
+    try {
+      const data = await this.lglClient.graphql(QUERIES.getFulfilledOrders, variables);
+      const orders = [];
       
-      // Only process fulfilled orders
-      if (order.fulfillment_status !== 'fulfilled') {
-        this.logger.logInfo(`Skipping ${order.name}: not fulfilled (status: ${order.fulfillment_status})`);
-        continue;
-      }
+      this.logger.logInfo(`Found ${data.orders.edges.length} orders from GraphQL query`);
       
-      // Only process if not already pushed
-      if (order.tags.includes('fulfillment-pushed')) {
-        this.logger.logInfo(`Skipping ${order.name}: already pushed`);
-        continue;
-      }
-      
-      // Must have an 'imported-from-...' tag and a numeric order number tag
-      const tags = order.tags.split(',').map(tag => tag.trim());
-      const importedFromTag = tags.find(tag => tag.startsWith('imported-from-'));
-      const orderNumberTag = tags.find(tag => /^\d+$/.test(tag));
-      
-      if (!importedFromTag || !orderNumberTag) {
-        this.logger.logInfo(`Skipping ${order.name}: missing required tags (imported-from: ${!!importedFromTag}, order number: ${!!orderNumberTag})`);
-        continue;
-      }
-      
-      // Extract source info using tags
-      const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(tags);
-      if (!sourceOrderNumber || !sourceStoreName) {
-        this.logger.logInfo(`Skipping ${order.name}: could not extract source info (orderNumber: ${sourceOrderNumber}, storeName: ${sourceStoreName})`);
-        continue;
-      }
-      
-      // Only process orders that were imported from the current retailer
-      const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
+      for (const edge of data.orders.edges) {
+        const order = edge.node;
+        this.logger.logInfo(`Processing order ${order.name}`);
+        
+        // Only process if not already pushed
+        if (order.tags.includes('fulfillment-pushed')) {
+          this.logger.logInfo(`Skipping ${order.name}: already pushed`);
+          continue;
+        }
+        
+        // Must have an 'imported-from-...' tag and a numeric order number tag
+        const tags = order.tags ? order.tags.split(',').map(tag => tag.trim()) : [];
+        const importedFromTag = tags.find(tag => tag.startsWith('imported-from-'));
+        const orderNumberTag = tags.find(tag => /^\d+$/.test(tag));
+        
+        if (!importedFromTag || !orderNumberTag) {
+          this.logger.logInfo(`Skipping ${order.name}: missing required tags (imported-from: ${!!importedFromTag}, order number: ${!!orderNumberTag})`);
+          continue;
+        }
+        
+        // Extract source info using tags
+        const { sourceOrderNumber, sourceStoreName } = this.extractSourceInfoFromTags(tags);
+        if (!sourceOrderNumber || !sourceStoreName) {
+          this.logger.logInfo(`Skipping ${order.name}: could not extract source info (orderNumber: ${sourceOrderNumber}, storeName: ${sourceStoreName})`);
+          continue;
+        }
+        
+        // Only process orders that were imported from the current retailer
+        const currentRetailerName = this.retailer.name.replace(/\s+/g, '-').toLowerCase();
       if (sourceStoreName !== currentRetailerName) {
         this.logger.logInfo(`Skipping ${order.name}: imported from ${sourceStoreName}, but processing for ${currentRetailerName}`);
         continue;
@@ -296,15 +303,35 @@ class FulfillmentProcessor {
       globalId = `gid://shopify/Order/${orderId}`;
     }
     
-    const mutation = `
-      mutation addTags($id: ID!, $tags: [String!]!) {
-        tagsAdd(id: $id, tags: $tags) {
-          node { id }
-          userErrors { field message }
+    // Get current tags first
+    const getOrderQuery = `
+      query getOrder($id: ID!) {
+        order(id: $id) {
+          id
+          tags
         }
       }
     `;
-    await this.lglClient.graphql(mutation, { id: globalId, tags: [tag] });
+    
+    try {
+      const orderData = await this.lglClient.graphql(getOrderQuery, { id: globalId });
+      const currentTags = orderData.order.tags || [];
+      const newTags = [...currentTags, tag];
+      
+      // Update tags using centralized query
+      const result = await this.lglClient.graphql(QUERIES.updateOrderTags, {
+        id: globalId,
+        tags: newTags
+      });
+      
+      if (result.orderUpdate.userErrors.length > 0) {
+        this.logger.logError(`Error tagging target order: ${JSON.stringify(result.orderUpdate.userErrors)}`);
+      } else {
+        this.logger.logInfo(`Successfully tagged target order ${globalId} with tag: ${tag}`);
+      }
+    } catch (error) {
+      this.logger.logError(`Failed to tag target order ${globalId}: ${error.message}`);
+    }
   }
 }
 

@@ -1,14 +1,22 @@
 const { ShopifyClient } = require('./shopify-client');
 const { Logger } = require('./logger');
+const { QUERIES, buildOrderInput, addTags } = require('./graphql-queries');
+const fs = require('fs');
+const path = require('path');
 
 class OrderProcessor {
   constructor(retailer, config) {
     this.retailer = retailer;
     this.config = config;
+    
+    // Load API configuration
+    const apiConfigPath = path.join(__dirname, '../../config/shopify-api-config.json');
+    const apiConfig = JSON.parse(fs.readFileSync(apiConfigPath, 'utf8'));
+    
     // Retail store (source) - where orders originate
-    this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken);
+    this.retailClient = new ShopifyClient(retailer.domain, retailer.apiToken, apiConfig);
     // LGL store (target) - where orders are imported
-    this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken);
+    this.lglClient = new ShopifyClient(config.lglStore.domain, config.lglStore.apiToken, apiConfig);
     this.logger = new Logger(retailer.id || retailer.name, config);
   }
 
@@ -49,86 +57,22 @@ class OrderProcessor {
   async getEligibleOrders() {
     const lookbackHours = this.retailer.settings.lookbackHours || this.config.defaults.lookbackHours;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
-    const query = `
-      query getOrders {
-        orders(first: 50, query: "financial_status:paid -tag:imported-to-LGL created_at:>=${lookbackTime}") {
-          edges {
-            node {
-              id
-              name
-              tags
-              note
-              cancelReason
-              cancelledAt
-              metafields(first: 10, namespace: "custom") {
-                edges {
-                  node {
-                    key
-                    value
-                  }
-                }
-              }
-              lineItems(first: 50) {
-                edges {
-                  node {
-                    id
-                    sku
-                    quantity
-                    name
-                    variant {
-                      id
-                    }
-                  }
-                }
-              }
-              fulfillmentOrders(first: 10) {
-                edges {
-                  node {
-                    id
-                    assignedLocation {
-                      location {
-                        id
-                        name
-                      }
-                    }
-                    lineItems(first: 50) {
-                      edges {
-                        node {
-                          lineItem {
-                            id
-                          }
-                          remainingQuantity
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-              shippingAddress {
-                firstName
-                lastName
-                address1
-                address2
-                city
-                province
-                zip
-                country
-                phone
-              }
-              note
-            }
-          }
-        }
-      }
-    `;
-    const data = await this.retailClient.graphql(query);
-    const orders = [];
-    const locationGid = `gid://shopify/Location/${this.retailer.lglLocationId}`;
     
-    this.logger.logInfo(`Found ${data.orders.edges.length} orders from GraphQL query`);
+    // Use optimized query from centralized queries
+    const variables = {
+      lookbackTime,
+      first: 50
+    };
     
-    for (const edge of data.orders.edges) {
-      const order = edge.node;
+    try {
+      const data = await this.retailClient.graphql(QUERIES.getEligibleOrders, variables);
+      const orders = [];
+      const locationGid = `gid://shopify/Location/${this.retailer.lglLocationId}`;
+      
+      this.logger.logInfo(`Found ${data.orders.edges.length} orders from optimized GraphQL query`);
+      
+      for (const edge of data.orders.edges) {
+        const order = edge.node;
       this.logger.logInfo(`Processing order ${order.name}`);
       
       if (order.cancelReason || order.cancelledAt) {
@@ -263,45 +207,25 @@ class OrderProcessor {
     noteAttributes.push({ name: '__flare_ship_date', value: shipDate });
     this.logger.logInfo(`Setting flare ship date to: ${shipDate}`);
     
-    const orderPayload = {
-      order: {
-        email: this.retailer.billingAddress.email,
-        line_items: lineItems,
-        shipping_address: shippingAddress,
-        billing_address: billingAddress,
-        tags,
-        financial_status: 'paid',
-        inventory_behaviour: 'decrement_ignoring_policy',
-        note_attributes: noteAttributes,
-        note: order.note || undefined,
-      },
-    };
-    const path = '/orders.json';
-    const result = await this.lglClient.rest('POST', path, orderPayload);
-    if (!result.order || !result.order.id) {
-      throw new Error('Order creation error: ' + JSON.stringify(result));
+    // Use GraphQL mutation instead of REST
+    const orderInput = buildOrderInput(order, this.retailer.targetLocationId);
+    
+    // Add custom attributes for tracking
+    orderInput.noteAttributes = noteAttributes;
+    
+    const result = await this.lglClient.graphql(QUERIES.createOrder, {
+      input: orderInput
+    });
+    
+    if (result.orderCreate.userErrors.length > 0) {
+      throw new Error(`Order creation error: ${JSON.stringify(result.orderCreate.userErrors)}`);
     }
-    const orderGid = `gid://shopify/Order/${result.order.id}`;
-    return orderGid;
+    
+    return result.orderCreate.order.id;
   }
 
   async getTargetVariantAndPriceBySKU(sku) {
-    const query = `
-      query getVariantBySKU($sku: String!) {
-        productVariants(first: 1, query: $sku) {
-          edges {
-            node {
-              id
-              sku
-              metafield(namespace: "custom", key: "retailer_cost") {
-                value
-              }
-            }
-          }
-        }
-      }
-    `;
-    const data = await this.lglClient.graphql(query, { sku });
+    const data = await this.lglClient.graphql(QUERIES.getProductVariantBySku, { sku });
     const edge = data.productVariants.edges[0];
     if (!edge) return null;
     const variant = edge.node;
@@ -316,26 +240,11 @@ class OrderProcessor {
     this.logger.logInfo(`Tagging source order ${sourceOrder.id} and target order ${targetOrderGid}`);
     
     // Tag the source order to prevent duplicate imports
-    const sourceTagMutation = `
-      mutation tagOrder($id: ID!, $tags: [String!]!) {
-        orderUpdate(input: { id: $id, tags: $tags }) {
-          order {
-            id
-            tags
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
-    
     const currentTags = sourceOrder.tags || [];
     const newTags = [...currentTags, 'imported-to-LGL'];
     
     try {
-      const result = await this.retailClient.graphql(sourceTagMutation, {
+      const result = await this.retailClient.graphql(QUERIES.updateOrderTags, {
         id: sourceOrder.id,
         tags: newTags
       });

@@ -9,15 +9,16 @@
     "fulfillmentLookbackHours": 24
   },
   "shopifyApi": {
+    "configFile": "config/shopify-api-config.json",
     "rateLimiting": {
       "enabled": true,
-      "requestsPerSecond": 4,
+      "requestsPerSecond": 2,
       "maxConcurrentRequests": 10,
       "rateLimitWindowMs": 5000,
       "maxRetries": 3,
       "retryDelayMs": 1000,
       "exponentialBackoff": true,
-      "timeoutMs": 3000
+      "timeoutMs": 30000
     }
   },
   "inventory": {

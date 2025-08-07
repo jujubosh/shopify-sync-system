@@ -1,0 +1,44 @@
+{
+  "apiVersion": "2024-10",
+  "rateLimiting": {
+    "requestsPerSecond": 2,
+    "maxConcurrentRequests": 10,
+    "retryDelayMs": 1000,
+    "maxRetries": 3,
+    "exponentialBackoff": true
+  },
+  "timeouts": {
+    "requestTimeoutMs": 30000,
+    "connectionTimeoutMs": 10000
+  },
+  "pagination": {
+    "defaultPageSize": 50,
+    "maxPageSize": 250
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelay": 1000,
+    "maxDelay": 10000,
+    "retryableErrors": [
+      429,
+      500,
+      502,
+      503,
+      504
+    ]
+  },
+  "logging": {
+    "enabled": true,
+    "logRequests": false,
+    "logResponses": false,
+    "logErrors": true,
+    "logMetrics": true
+  },
+  "metrics": {
+    "enabled": true,
+    "trackResponseTimes": true,
+    "trackErrorRates": true,
+    "trackRateLimitHits": true
+  }
+}

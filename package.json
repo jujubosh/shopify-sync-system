@@ -12,6 +12,7 @@
     "test-email": "node scripts/test-database-email.js",
     "test-complete": "node scripts/test-complete-system.js",
     "verify-data": "node scripts/verify-data.js",
+    "test-api": "node scripts/test-improved-api.js",
     "start": "node do-import-orders.js"
   },
   "dependencies": {
